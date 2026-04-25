@@ -1,8 +1,6 @@
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const MODEL_MAP: Record<string, string> = {
   "gpt-4o": "gpt-4o",
   "gpt-4o-mini": "gpt-4o-mini",
@@ -14,6 +12,24 @@ const MODEL_MAP: Record<string, string> = {
   "o3-mini": "o3-mini",
 };
 
+/** Fetch the active API key for a provider from the backend DB. Falls back to env. */
+async function getApiKey(provider: string): Promise<string> {
+  try {
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
+    const res = await fetch(`${backendUrl}/api/admin/api-key/${provider}`, {
+      next: { revalidate: 60 }, // cache for 60s at Next.js level
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.key) return data.key as string;
+    }
+  } catch {
+    // backend unreachable – fall through to env fallback
+  }
+  // Environment variable fallback
+  return process.env.OPENAI_API_KEY ?? "";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages, model } = await req.json();
@@ -23,6 +39,12 @@ export async function POST(req: NextRequest) {
     }
 
     const openaiModel = MODEL_MAP[model] ?? "gpt-4o";
+
+    const apiKey = await getApiKey("openai");
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "No OpenAI API key configured." }), { status: 500 });
+    }
+    const openai = new OpenAI({ apiKey });
 
     const stream = await openai.chat.completions.create({
       model: openaiModel,

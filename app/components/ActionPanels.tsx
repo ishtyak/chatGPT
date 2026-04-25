@@ -44,11 +44,25 @@ const ASPECT_RATIOS_IMAGE = [
   { id: "3:4", label: "3:4", icon: (sel: boolean) => <svg width="11" height="14" viewBox="0 0 14 18" fill="none"><rect x="1" y="1" width="12" height="16" rx="1.5" stroke={sel ? "white" : "#52525b"} strokeWidth="1.8"/></svg> },
 ];
 
-export function ImageOptionsPanel({ onClose }: { onClose: () => void }) {
-  const [model, setModel] = useState("gpt-image-2");
-  const [ratio, setRatio] = useState("1:1hd");
-  const [count, setCount] = useState(2);
+export type ImageOptions = { model: string; ratio: string; count: number };
 
+export function ImageOptionsPanel({
+  onClose,
+  model,
+  ratio,
+  count,
+  onModelChange,
+  onRatioChange,
+  onCountChange,
+}: {
+  onClose: () => void;
+  model: string;
+  ratio: string;
+  count: number;
+  onModelChange: (m: string) => void;
+  onRatioChange: (r: string) => void;
+  onCountChange: (n: number) => void;
+}) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white shadow-lg">
       {/* Header */}
@@ -74,7 +88,7 @@ export function ImageOptionsPanel({ onClose }: { onClose: () => void }) {
           <p className="mb-2 text-[10px] font-semibold tracking-widest text-zinc-400 uppercase">Model</p>
           <div className="flex flex-wrap gap-1.5">
             {IMAGE_MODELS.map((m) => (
-              <ModelPill key={m.id} label={m.label} selected={model === m.id} onClick={() => setModel(m.id)} />
+              <ModelPill key={m.id} label={m.label} selected={model === m.id} onClick={() => onModelChange(m.id)} />
             ))}
           </div>
         </div>
@@ -87,7 +101,7 @@ export function ImageOptionsPanel({ onClose }: { onClose: () => void }) {
               {ASPECT_RATIOS_IMAGE.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => setRatio(r.id)}
+                  onClick={() => onRatioChange(r.id)}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                     ratio === r.id
                       ? "border-zinc-900 bg-zinc-900 text-white"
@@ -107,7 +121,7 @@ export function ImageOptionsPanel({ onClose }: { onClose: () => void }) {
               {[1, 2, 3, 4].map((n) => (
                 <button
                   key={n}
-                  onClick={() => setCount(n)}
+                  onClick={() => onCountChange(n)}
                   className={`h-8 w-8 rounded-full border text-sm font-medium transition-all ${
                     count === n
                       ? "border-zinc-900 bg-zinc-900 text-white"

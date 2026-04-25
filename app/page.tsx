@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
 import AuthModal from "./components/AuthModal";
@@ -80,6 +80,36 @@ function IconChevronDown() {
     </svg>
   );
 }
+// ── SpeechRecognition type shim ─────────────────────────────────────────────
+interface SpeechRecognitionResultItem { transcript: string; confidence: number; }
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  readonly resultIndex?: number;
+  item(index: number): { isFinal: boolean; length: number; [i: number]: SpeechRecognitionResultItem };
+  [index: number]: { isFinal: boolean; length: number; [i: number]: SpeechRecognitionResultItem };
+}
+interface MySpeechRecognitionEvent extends Event {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultList;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start(): void;
+  stop(): void;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  onresult: ((event: MySpeechRecognitionEvent) => void) | null;
+}
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
+  }
+}
+
 function IconMic() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -101,6 +131,172 @@ function IconAnthropicA() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
       <path d="M13.8 4.5h-3.6L4.5 19.5h3.2l1.4-3.9h6.8l1.4 3.9h3.2L13.8 4.5zm-3.9 8.6 2.1-5.9 2.1 5.9H9.9z"/>
     </svg>
+  );
+}
+
+const VIDEO_INTENT_RE = /\b(generate|create|make|produce|render|animate|record)\b.{0,60}\b(video|clip|animation|reel|footage|motion|film|movie|cinematic)\b/i;
+const VIDEO_NOUN_FIRST_RE = /\b(video|clip|animation|reel|footage|film|movie)\s+(of|showing|with|depicting|for)\b/i;
+
+function isVideoRequest(text: string): boolean {
+  return VIDEO_INTENT_RE.test(text) || VIDEO_NOUN_FIRST_RE.test(text);
+}
+
+// ── Video message renderer ───────────────────────────────────────────────────
+
+function VideoMessage({ content }: { content: string }) {
+  if (content.startsWith("__VIDEO_PENDING__:")) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-4" style={{ maxWidth: "480px" }}>
+        <span className="relative flex h-4 w-4 shrink-0">
+          <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-rose-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-500" />
+        </span>
+        <div>
+          <p className="text-sm font-medium text-zinc-800">Generating video…</p>
+          <p className="text-xs text-zinc-400 mt-0.5">This usually takes 30–90 seconds</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (content.startsWith("__VIDEO_ERROR__:")) {
+    const msg = content.replace("__VIDEO_ERROR__:", "");
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" style={{ maxWidth: "480px" }}>
+        <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        {msg || "Video generation failed"}
+      </div>
+    );
+  }
+
+  // __VIDEO__:<url>
+  const rawUrl = content.replace("__VIDEO__:", "");
+  // Route through our server proxy to avoid CORS issues with Replicate CDN
+  const proxyUrl = `/api/video/proxy?url=${encodeURIComponent(rawUrl)}`;
+
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "generated-video.mp4";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch {
+      // Fallback: open proxy URL in new tab
+      window.open(proxyUrl, "_blank");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2" style={{ maxWidth: "480px" }}>
+      <div className="relative group overflow-hidden rounded-2xl border border-zinc-200 shadow-sm bg-black">
+        <video
+          src={proxyUrl}
+          controls
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-auto block"
+        />
+        {/* Download overlay button */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={handleDownload}
+            className="flex items-center gap-1.5 rounded-full bg-white/90 hover:bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 shadow transition-all"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download
+          </button>
+        </div>
+      </div>
+      {/* Prominent download button below */}
+      <button
+        onClick={handleDownload}
+        className="flex items-center gap-2 self-start rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-700 shadow-sm transition-colors"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download video
+      </button>
+    </div>
+  );
+}
+
+// ── Image intent detection ───────────────────────────────────────────────────
+
+const IMAGE_INTENT_RE = /\b(generate|create|draw|make|design|produce|paint|render|illustrate|show me|give me|get me)\b.{0,60}\b(image|img|photo|picture|illustration|artwork|drawing|painting|poster|wallpaper|portrait|logo|icon|thumbnail|banner)\b/i;
+const IMAGE_NOUN_FIRST_RE = /\b(image|img|photo|picture|illustration|artwork|drawing|painting|poster|wallpaper|portrait|logo|icon|thumbnail|banner)\s+(of|showing|with|depicting|for)\b/i;
+
+function isImageRequest(text: string): boolean {
+  return IMAGE_INTENT_RE.test(text) || IMAGE_NOUN_FIRST_RE.test(text);
+}
+
+// ── Image message renderer ───────────────────────────────────────────────────
+
+function ImageMessage({ content }: { content: string }) {
+  // format: __IMAGE__:<url1>|<url2>||<revisedPrompt>
+  const raw = content.replace("__IMAGE__:", "");
+  const sepIdx = raw.indexOf("||");
+  const urlsPart = sepIdx === -1 ? raw : raw.slice(0, sepIdx);
+  const caption = sepIdx === -1 ? "" : raw.slice(sepIdx + 2);
+  const urls = urlsPart.split("|").filter(Boolean);
+
+  const handleDownload = async (url: string, idx: number) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `generated-image${urls.length > 1 ? `-${idx + 1}` : ""}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className={`grid gap-2 ${urls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`} style={{ maxWidth: urls.length > 1 ? "640px" : "480px" }}>
+        {urls.map((url, idx) => (
+          <div key={idx} className="relative group overflow-hidden rounded-2xl border border-zinc-200 shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={caption || `Generated image ${idx + 1}`} className="w-full h-auto block" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-end justify-end p-3 opacity-0 group-hover:opacity-100">
+              <button
+                onClick={() => handleDownload(url, idx)}
+                className="flex items-center gap-1.5 rounded-full bg-white/90 hover:bg-white px-3 py-2 text-xs font-medium text-zinc-800 shadow transition-all"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {caption && (
+        <p className="text-xs text-zinc-400 italic leading-relaxed" style={{ maxWidth: urls.length > 1 ? "640px" : "480px" }}>{caption}</p>
+      )}
+    </div>
   );
 }
 
@@ -141,9 +337,10 @@ function MarkdownContent({ content, streaming }: { content: string; streaming: b
 
 // ── Nav item ─────────────────────────────────────────────────────────────────
 
-function NavItem({ icon, label, active = false }: { icon: React.ReactNode; label: string; active?: boolean }) {
+function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
   return (
     <button
+      onClick={onClick}
       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
         active
           ? "bg-zinc-700 text-white"
@@ -167,6 +364,8 @@ export default function Home() {
   const userName = session?.user?.name ?? "";
   const userImage = session?.user?.image ?? "";
   const userInitial = userName.charAt(0).toUpperCase();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accessToken = (session as any)?.accessToken as string | undefined;
   const [authModal, setAuthModal] = useState<"signup" | "signin" | null>(null);
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState("claude-opus-4-6");
@@ -178,6 +377,20 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // ── Conversation persistence ─────────────────────────────────────────────
+  type RecentChat = { id: number; title: string; updated_at: string };
+  const BACKEND_API = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const conversationIdRef = useRef<number | null>(null);
+  const [recentChats, setRecentChats] = useState<RecentChat[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  function setActiveConversation(id: number | null) {
+    conversationIdRef.current = id;
+    setConversationId(id);
+  }
+
   // Smooth streaming via requestAnimationFrame
   const fullTextRef      = useRef("");       // raw text received from stream
   const displayRef       = useRef(0);        // how many chars are visible so far
@@ -185,6 +398,61 @@ export default function Home() {
   const streamingIdRef   = useRef<string | null>(null);
   const rafRef           = useRef<number | null>(null);
   const [streamingId, setStreamingId] = useState<string | null>(null);
+
+  // Video polling
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Voice dictation ───────────────────────────────────────────────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+
+  const startDictation = useCallback(() => {
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!SR) return;
+
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognition = new SR();
+    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognitionRef.current = recognition;
+
+    // Keep the text already typed so we append the transcript after it
+    const baseText = inputValue.trimEnd();
+
+    recognition.onstart = () => setIsRecording(true);
+
+    recognition.onresult = (event: MySpeechRecognitionEvent) => {
+      let interim = "";
+      let final = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      const appended = final || interim;
+      setInputValue(baseText ? `${baseText} ${appended}` : appended);
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.start();
+  }, [isRecording, inputValue]);
+
+  // Cleanup on unmount
+  useEffect(() => () => { recognitionRef.current?.stop(); }, []);
 
   // Chars revealed per animation frame (~60fps × 3 = ~180 chars/sec)
   const CHARS_PER_FRAME = 3;
@@ -219,8 +487,52 @@ export default function Home() {
   }
 
   useEffect(() => {
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
   }, []);
+
+  function startVideoPoll(messageId: string, predictionId: string) {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/video/poll?id=${predictionId}`);
+        const data = await res.json() as { status: string; videoUrl?: string; error?: string };
+        if (data.status === "succeeded" && data.videoUrl) {
+          clearInterval(pollTimerRef.current!);
+          pollTimerRef.current = null;
+          setMessages((prev) =>
+            prev.map((m) => m.id === messageId ? { ...m, content: `__VIDEO__:${data.videoUrl}` } : m)
+          );
+          // Persist now that we have the URL
+          if (isLoggedIn && accessToken) {
+            const text = messages.find((m) => m.role === "user")?.content ?? "";
+            let convId = conversationIdRef.current;
+            if (convId === null) {
+              convId = await createConversation(text, accessToken);
+              if (convId !== null) setActiveConversation(convId);
+            }
+            if (convId !== null) {
+              await saveMessages(
+                convId,
+                [{ role: "assistant", content: `__VIDEO__:${data.videoUrl}` }],
+                accessToken
+              );
+            }
+          }
+        } else if (data.status === "failed") {
+          clearInterval(pollTimerRef.current!);
+          pollTimerRef.current = null;
+          setMessages((prev) =>
+            prev.map((m) => m.id === messageId ? { ...m, content: `__VIDEO_ERROR__:${data.error ?? "Generation failed"}` } : m)
+          );
+        }
+      } catch {
+        // network hiccup — keep polling
+      }
+    }, 4000);
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -237,6 +549,130 @@ export default function Home() {
 
     const aiId = (Date.now() + 1).toString();
     setMessages((prev) => [...prev, { id: aiId, role: "assistant", content: "" }]);
+
+    // ── Image generation request ────────────────────────────────────────────
+    if (isImageRequest(text)) {
+      try {
+        const res = await fetch("/api/image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text, model: imageModel, aspectRatio: imageRatio, count: imageCount }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiId ? { ...m, content: `Error: ${data.error ?? "Image generation failed"}` } : m
+            )
+          );
+          setIsTyping(false);
+          return;
+        }
+        const urls: string[] = Array.isArray(data.urls) ? data.urls : [data.url ?? ""];
+        const imageContent = `__IMAGE__:${urls.join("|")}||${data.revisedPrompt ?? ""}`;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiId ? { ...m, content: imageContent } : m))
+        );
+        setIsTyping(false);
+
+        // Persist
+        if (isLoggedIn && accessToken) {
+          let convId = conversationIdRef.current;
+          if (convId === null) {
+            convId = await createConversation(text, accessToken);
+            if (convId !== null) setActiveConversation(convId);
+          }
+          if (convId !== null) {
+            await saveMessages(
+              convId,
+              [{ role: "user", content: text }, { role: "assistant", content: imageContent }],
+              accessToken
+            );
+            void fetchRecentChats(accessToken);
+          }
+        }
+      } catch {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiId ? { ...m, content: "Network error. Please try again." } : m
+          )
+        );
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    // ── Video generation request ────────────────────────────────────────────
+    if (isVideoRequest(text) && !isImageRequest(text)) {
+      try {
+        const res = await fetch("/api/video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text }),
+        });
+        const data = await res.json() as { id?: string; status?: string; videoUrl?: string; error?: string };
+        if (!res.ok || data.error) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiId ? { ...m, content: `__VIDEO_ERROR__:${data.error ?? "Video generation failed"}` } : m
+            )
+          );
+          setIsTyping(false);
+          return;
+        }
+        // Succeeded immediately (rare but possible with Prefer: wait)
+        if (data.status === "succeeded" && data.videoUrl) {
+          setMessages((prev) =>
+            prev.map((m) => m.id === aiId ? { ...m, content: `__VIDEO__:${data.videoUrl}` } : m)
+          );
+          setIsTyping(false);
+          // Persist
+          if (isLoggedIn && accessToken) {
+            let convId = conversationIdRef.current;
+            if (convId === null) {
+              convId = await createConversation(text, accessToken);
+              if (convId !== null) setActiveConversation(convId);
+            }
+            if (convId !== null) {
+              await saveMessages(
+                convId,
+                [{ role: "user", content: text }, { role: "assistant", content: `__VIDEO__:${data.videoUrl}` }],
+                accessToken
+              );
+              void fetchRecentChats(accessToken);
+            }
+          }
+          return;
+        }
+        // Show pending state and start polling
+        setMessages((prev) =>
+          prev.map((m) => m.id === aiId ? { ...m, content: `__VIDEO_PENDING__:${data.id}` } : m)
+        );
+        setIsTyping(false);
+        if (data.id) startVideoPoll(aiId, data.id);
+
+        // Persist user message
+        if (isLoggedIn && accessToken) {
+          let convId = conversationIdRef.current;
+          if (convId === null) {
+            convId = await createConversation(text, accessToken);
+            if (convId !== null) setActiveConversation(convId);
+          }
+          if (convId !== null) {
+            await saveMessages(convId, [{ role: "user", content: text }], accessToken);
+            void fetchRecentChats(accessToken);
+          }
+        }
+      } catch {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiId ? { ...m, content: "__VIDEO_ERROR__:Network error. Please try again." } : m
+          )
+        );
+        setIsTyping(false);
+      }
+      return;
+    }
 
     // Reset animation state
     fullTextRef.current = "";
@@ -278,6 +714,26 @@ export default function Home() {
       }
       // Signal animation loop that the source is exhausted
       streamDoneRef.current = true;
+
+      // ── Persist to backend ──────────────────────────────────────────────
+      if (isLoggedIn && accessToken) {
+        let convId = conversationIdRef.current;
+        if (convId === null) {
+          convId = await createConversation(text, accessToken);
+          if (convId !== null) setActiveConversation(convId);
+        }
+        if (convId !== null) {
+          await saveMessages(
+            convId,
+            [
+              { role: "user", content: text },
+              { role: "assistant", content: fullTextRef.current },
+            ],
+            accessToken
+          );
+          void fetchRecentChats(accessToken);
+        }
+      }
     } catch {
       setMessages((prev) =>
         prev.map((m) =>
@@ -290,9 +746,106 @@ export default function Home() {
   }
 
   function handleCopy(id: string, text: string) {
-    navigator.clipboard.writeText(text);
+    let copyText = text;
+    if (text.startsWith("__IMAGE__:")) copyText = text.replace("__IMAGE__:", "").split("||")[0];
+    else if (text.startsWith("__VIDEO__:")) {
+      const raw = text.replace("__VIDEO__:", "");
+      copyText = `/api/video/proxy?url=${encodeURIComponent(raw)}`;
+    }
+    else if (text.startsWith("__VIDEO_PENDING__:") || text.startsWith("__VIDEO_ERROR__:")) return;
+    navigator.clipboard.writeText(copyText);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  // ── Backend API helpers ─────────────────────────────────────────────────
+  async function fetchRecentChats(token: string) {
+    try {
+      const res = await fetch(`${BACKEND_API}/api/conversations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setRecentChats(await res.json());
+    } catch { /* network error — silently ignore */ }
+  }
+
+  async function createConversation(title: string, token: string): Promise<number | null> {
+    try {
+      const res = await fetch(`${BACKEND_API}/api/conversations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: title.slice(0, 80) }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.id as number;
+    } catch { return null; }
+  }
+
+  async function saveMessages(convId: number, msgs: { role: string; content: string }[], token: string) {
+    try {
+      await fetch(`${BACKEND_API}/api/conversations/${convId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messages: msgs }),
+      });
+    } catch { /* ignore */ }
+  }
+
+  async function loadConversation(id: number, token: string) {
+    try {
+      const res = await fetch(`${BACKEND_API}/api/conversations/${id}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const msgs = await res.json();
+      setMessages(
+        msgs.map((m: { id: number; role: "user" | "assistant"; content: string }) => ({
+          id: String(m.id),
+          role: m.role,
+          content: m.content,
+        }))
+      );
+      setActiveConversation(id);
+    } catch { /* ignore */ }
+  }
+
+  // Fetch recent chats whenever the user signs in
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (isLoggedIn && accessToken) void fetchRecentChats(accessToken);
+  }, [isLoggedIn, accessToken]);
+
+  // ── Search helper ─────────────────────────────────────────────────────────
+  function groupChatsByDate(chats: RecentChat[], query: string) {
+    const filtered = query.trim()
+      ? chats.filter((c) => c.title.toLowerCase().includes(query.toLowerCase()))
+      : chats;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const startOf7Days = new Date(startOfToday);
+    startOf7Days.setDate(startOf7Days.getDate() - 7);
+    const startOf30Days = new Date(startOfToday);
+    startOf30Days.setDate(startOf30Days.getDate() - 30);
+
+    const groups: { label: string; chats: RecentChat[] }[] = [
+      { label: "Today", chats: [] },
+      { label: "Yesterday", chats: [] },
+      { label: "Previous 7 Days", chats: [] },
+      { label: "Previous 30 Days", chats: [] },
+      { label: "Older", chats: [] },
+    ];
+
+    for (const chat of filtered) {
+      const d = new Date(chat.updated_at);
+      if (d >= startOfToday) groups[0].chats.push(chat);
+      else if (d >= startOfYesterday) groups[1].chats.push(chat);
+      else if (d >= startOf7Days) groups[2].chats.push(chat);
+      else if (d >= startOf30Days) groups[3].chats.push(chat);
+      else groups[4].chats.push(chat);
+    }
+    return groups.filter((g) => g.chats.length > 0);
   }
 
   // ── Quick-action panel state ───────────────────────────────────────
@@ -310,6 +863,52 @@ export default function Home() {
     if (plusMenuOpen) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [plusMenuOpen]);
+
+  // ── Image generation options ─────────────────────────────────────────────
+  const [imageModel, setImageModel] = useState("gpt-image-2");
+  const [imageRatio, setImageRatio] = useState("1:1hd");
+  const [imageCount, setImageCount] = useState(2);
+
+  // ── Chat context menu (3-dot) ────────────────────────────────────────────
+  const [chatMenu, setChatMenu] = useState<number | null>(null);
+  const [shareToast, setShareToast] = useState(false);
+  const chatMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function closeChatMenu(e: MouseEvent) {
+      if (chatMenuRef.current && !chatMenuRef.current.contains(e.target as Node)) {
+        setChatMenu(null);
+      }
+    }
+    if (chatMenu !== null) document.addEventListener("mousedown", closeChatMenu);
+    return () => document.removeEventListener("mousedown", closeChatMenu);
+  }, [chatMenu]);
+
+  async function deleteConversation(id: number) {
+    if (!accessToken) return;
+    setChatMenu(null);
+    try {
+      const res = await fetch(`http://localhost:4000/api/conversations/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return;
+      setRecentChats((prev) => prev.filter((c) => c.id !== id));
+      if (conversationId === id) {
+        setConversationId(null);
+        setMessages([]);
+      }
+    } catch { /* ignore */ }
+  }
+
+  function shareConversation(id: number) {
+    setChatMenu(null);
+    const url = `${window.location.origin}/?conversation=${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2500);
+    });
+  }
 
   const PLUS_MENU_ITEMS = [
     {
@@ -435,6 +1034,14 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white">
+      {/* ── Share toast ── */}
+      {shareToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2 rounded-xl bg-zinc-800 px-4 py-2.5 text-sm text-white shadow-xl border border-zinc-700 pointer-events-none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Link copied to clipboard
+        </div>
+      )}
+
       {/* ── Sidebar ── */}
       <aside
         className={`flex flex-col bg-[#1a1a1a] transition-all duration-300 ${
@@ -458,14 +1065,100 @@ export default function Home() {
 
         {/* Nav */}
         <nav className="flex flex-col gap-0.5 px-2 py-3">
-          <NavItem icon={<IconNewChat />} label="New chat" active />
+          <NavItem
+            icon={<IconNewChat />}
+            label="New chat"
+            active={messages.length === 0 && conversationId === null}
+            onClick={() => { setMessages([]); setActiveConversation(null); }}
+          />
           <NavItem icon={<IconKeep />} label="Keep" />
           <NavItem icon={<IconAdditions />} label="Additions" />
           <NavItem icon={<IconExplore />} label="Explore" />
-          <NavItem icon={<IconSearch />} label="Search" />
+          <NavItem
+            icon={<IconSearch />}
+            label="Search"
+            onClick={() => { setSearchQuery(""); setSearchOpen(true); }}
+          />
         </nav>
 
-        <div className="flex-1" />
+        {/* Recent chats */}
+        <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "none" } as React.CSSProperties}>
+          {isLoggedIn && recentChats.length > 0 && (
+            <div className="px-2 py-2">
+              {groupChatsByDate(recentChats, "").map((group) => (
+                <div key={group.label} className="mb-2">
+                  <p className="px-3 pb-1 text-xs font-medium text-zinc-500">{group.label}</p>
+                  <div className="flex flex-col gap-0.5">
+                    {group.chats.map((chat) => (
+                      <div key={chat.id} className="relative group/item">
+                        {/* Chat row */}
+                        <div
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer ${
+                            conversationId === chat.id
+                              ? "bg-zinc-700 text-white"
+                              : "text-zinc-400 hover:bg-zinc-700/60 hover:text-white"
+                          }`}
+                        >
+                          {/* Title (clickable) */}
+                          <button
+                            className="flex flex-1 min-w-0 items-center gap-2 text-left"
+                            onClick={() => accessToken && loadConversation(chat.id, accessToken)}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <span className="truncate">{chat.title}</span>
+                          </button>
+
+                          {/* 3-dot trigger */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setChatMenu(chatMenu === chat.id ? null : chat.id); }}
+                            className="ml-auto shrink-0 opacity-0 group-hover/item:opacity-100 focus:opacity-100 rounded p-0.5 hover:bg-zinc-600 transition-opacity"
+                            title="More options"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+                            </svg>
+                          </button>
+                        </div>
+
+                        {/* Dropdown */}
+                        {chatMenu === chat.id && (
+                          <div
+                            ref={chatMenuRef}
+                            className="absolute left-0 top-full mt-1 z-50 w-44 rounded-xl border border-zinc-700 bg-zinc-800 py-1 shadow-xl"
+                          >
+                            <button
+                              onClick={() => shareConversation(chat.id)}
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                              </svg>
+                              Share
+                            </button>
+                            <div className="mx-3 my-1 border-t border-zinc-700/60" />
+                            <button
+                              onClick={() => deleteConversation(chat.id)}
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 hover:text-red-300 transition-colors"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+                                <path d="M9 6V4h6v2"/>
+                              </svg>
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Bottom: user info or sign-up */}
         <div className="border-t border-zinc-700/50 px-4 py-4">
@@ -572,7 +1265,17 @@ export default function Home() {
                 {/* Option panel — absolutely above input, grows upward */}
                 {activePanel && (
                   <div className="absolute bottom-full left-0 right-0 mb-3 z-10">
-                    {activePanel === "image" && <ImageOptionsPanel onClose={() => setActivePanel(null)} />}
+                    {activePanel === "image" && (
+                      <ImageOptionsPanel
+                        onClose={() => setActivePanel(null)}
+                        model={imageModel}
+                        ratio={imageRatio}
+                        count={imageCount}
+                        onModelChange={setImageModel}
+                        onRatioChange={setImageRatio}
+                        onCountChange={setImageCount}
+                      />
+                    )}
                     {activePanel === "video" && <VideoOptionsPanel onClose={() => setActivePanel(null)} />}
                     {activePanel === "edit" && <EditOptionsPanel onClose={() => setActivePanel(null)} />}
                     {activePanel === "upscale" && <UpscaleOptionsPanel onClose={() => setActivePanel(null)} />}
@@ -619,12 +1322,20 @@ export default function Home() {
                   placeholder={activePanel ? `Describe your ${activePanel}...` : "Ask anything..."}
                   className="flex-1 bg-transparent text-sm text-zinc-700 placeholder-zinc-400 outline-none"
                 />
-                <button className="flex-shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors">
+                <button
+                  onClick={startDictation}
+                  title={isRecording ? "Stop recording" : "Dictate"}
+                  className={`flex-shrink-0 transition-colors ${
+                    isRecording ? "text-red-500 animate-pulse" : "text-zinc-400 hover:text-zinc-600"
+                  }`}
+                >
                   <IconMic />
                 </button>
                 <button
                   onClick={handleSend}
-                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors"
+                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors ${
+                    isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
+                  }`}
                 >
                   <IconWaveform />
                 </button>
@@ -704,10 +1415,18 @@ export default function Home() {
                   ) : (
                     /* AI message – left aligned */
                     <div key={msg.id} className="flex flex-col gap-2">
-                      <MarkdownContent
-                        content={msg.content}
-                        streaming={streamingId === msg.id}
-                      />
+                      {msg.content.startsWith("__IMAGE__:") ? (
+                        <ImageMessage content={msg.content} />
+                      ) : msg.content.startsWith("__VIDEO__:") ||
+                          msg.content.startsWith("__VIDEO_PENDING__:") ||
+                          msg.content.startsWith("__VIDEO_ERROR__:") ? (
+                        <VideoMessage content={msg.content} />
+                      ) : (
+                        <MarkdownContent
+                          content={msg.content}
+                          streaming={streamingId === msg.id}
+                        />
+                      )}
                       {/* Action bar */}
                       <div className="flex items-center gap-0.5">
                         {/* Copy */}
@@ -782,13 +1501,21 @@ export default function Home() {
                     className="flex-1 bg-transparent text-sm text-zinc-700 placeholder-zinc-400 outline-none"
                     autoFocus
                   />
-                  <button className="flex-shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors">
+                  <button
+                    onClick={startDictation}
+                    title={isRecording ? "Stop recording" : "Dictate"}
+                    className={`flex-shrink-0 transition-colors ${
+                      isRecording ? "text-red-500 animate-pulse" : "text-zinc-400 hover:text-zinc-600"
+                    }`}
+                  >
                     <IconMic />
                   </button>
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim()}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+                      isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
+                    }`}
                   >
                     <IconWaveform />
                   </button>
@@ -804,6 +1531,91 @@ export default function Home() {
           defaultMode={authModal}
           onClose={() => setAuthModal(null)}
         />
+      )}
+
+      {/* ── Search modal ── */}
+      {searchOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setSearchOpen(false); }}
+        >
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: "75vh" }}>
+            {/* Search input */}
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-100">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-zinc-400 shrink-0">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                autoFocus
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Escape" && setSearchOpen(false)}
+                placeholder="Search chats..."
+                className="flex-1 bg-transparent text-base text-zinc-800 placeholder-zinc-400 outline-none"
+              />
+              <button
+                onClick={() => setSearchOpen(false)}
+                className="text-zinc-400 hover:text-zinc-600 transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Results list */}
+            <div className="overflow-y-auto flex-1">
+              {/* New chat row */}
+              {!searchQuery && (
+                <button
+                  onClick={() => { setMessages([]); setActiveConversation(null); setSearchOpen(false); }}
+                  className="flex w-full items-center gap-3 px-5 py-3.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 transition-colors"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  New chat
+                </button>
+              )}
+
+              {/* Grouped chats */}
+              {isLoggedIn && recentChats.length > 0 ? (
+                groupChatsByDate(recentChats, searchQuery).length > 0 ? (
+                  groupChatsByDate(recentChats, searchQuery).map((group) => (
+                    <div key={group.label}>
+                      <p className="px-5 pt-4 pb-1.5 text-xs font-medium text-zinc-400">{group.label}</p>
+                      {group.chats.map((chat) => (
+                        <button
+                          key={chat.id}
+                          onClick={() => {
+                            if (accessToken) loadConversation(chat.id, accessToken);
+                            setSearchOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-3 px-5 py-3 text-sm transition-colors ${
+                            conversationId === chat.id ? "bg-zinc-100 text-zinc-900" : "text-zinc-700 hover:bg-zinc-50"
+                          }`}
+                        >
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="shrink-0 text-zinc-400">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                          </svg>
+                          <span className="truncate">{chat.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-5 py-8 text-center text-sm text-zinc-400">No chats match &ldquo;{searchQuery}&rdquo;</p>
+                )
+              ) : !isLoggedIn ? (
+                <p className="px-5 py-8 text-center text-sm text-zinc-400">Sign in to search your chats</p>
+              ) : (
+                <p className="px-5 py-8 text-center text-sm text-zinc-400">No chats yet</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

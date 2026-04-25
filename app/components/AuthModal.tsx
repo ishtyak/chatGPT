@@ -2,21 +2,63 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+
 interface AuthModalProps {
   onClose: () => void;
   defaultMode?: "signup" | "signin";
 }
 
-
-
 // # Authentication modal component with email/password and social login options
 export default function AuthModal({ onClose, defaultMode = "signup" }: AuthModalProps) {
   const [mode, setMode] = useState<"signup" | "signin">(defaultMode);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const isSignUp = mode === "signup";
+
+  const handleSubmit = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      if (isSignUp) {
+        const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim() || undefined, email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "Registration failed.");
+          setLoading(false);
+          return;
+        }
+        // Auto sign-in after registration
+        const result = await signIn("credentials", { email, password, redirect: false });
+        if (result?.error) {
+          setError("Account created! Please sign in.");
+          setMode("signin");
+        } else {
+          onClose();
+        }
+      } else {
+        const result = await signIn("credentials", { email, password, redirect: false });
+        if (result?.error) {
+          setError("Invalid email or password.");
+        } else {
+          onClose();
+        }
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     /* Backdrop */
@@ -53,6 +95,13 @@ export default function AuthModal({ onClose, defaultMode = "signup" }: AuthModal
         <p className="mb-6 text-center text-sm text-zinc-500">
           {isSignUp ? "Create your account to continue" : "Sign in to your account to continue"}
         </p>
+
+        {/* Error message */}
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
         {/* Social buttons */}
         <div className="flex flex-col gap-3">
@@ -94,6 +143,20 @@ export default function AuthModal({ onClose, defaultMode = "signup" }: AuthModal
           <span className="text-xs text-zinc-400">OR</span>
           <div className="h-px flex-1 bg-zinc-200" />
         </div>
+
+        {/* Name (sign-up only) */}
+        {isSignUp && (
+          <div className="mb-3">
+            <label className="mb-1.5 block text-sm font-medium text-zinc-700">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter your name"
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-800 placeholder-zinc-400 outline-none focus:border-zinc-400 focus:bg-white transition-colors"
+            />
+          </div>
+        )}
 
         {/* Email */}
         <div className="mb-3">
@@ -141,10 +204,11 @@ export default function AuthModal({ onClose, defaultMode = "signup" }: AuthModal
 
         {/* Submit */}
         <button
-          disabled={!email || !password}
+          onClick={handleSubmit}
+          disabled={!email || !password || loading}
           className="w-full rounded-full bg-zinc-400 py-3 text-sm font-medium text-white transition-colors disabled:opacity-60 enabled:bg-zinc-900 enabled:hover:bg-zinc-800"
         >
-          {isSignUp ? "Create Account" : "Sign In"}
+          {loading ? "Please wait…" : isSignUp ? "Create Account" : "Sign In"}
         </button>
 
         {/* Footer link */}
@@ -152,14 +216,14 @@ export default function AuthModal({ onClose, defaultMode = "signup" }: AuthModal
           {isSignUp ? (
             <>
               Already have an account?{" "}
-              <button onClick={() => setMode("signin")} className="font-semibold text-zinc-900 hover:underline">
+              <button onClick={() => { setMode("signin"); setError(""); }} className="font-semibold text-zinc-900 hover:underline">
                 Sign in
               </button>
             </>
           ) : (
             <>
               Don&apos;t have an account?{" "}
-              <button onClick={() => setMode("signup")} className="font-semibold text-zinc-900 hover:underline">
+              <button onClick={() => { setMode("signup"); setError(""); }} className="font-semibold text-zinc-900 hover:underline">
                 Sign up
               </button>
             </>
