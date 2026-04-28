@@ -1,10 +1,15 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import AuthModal from "./components/AuthModal";
 import ModelSelector, { MODELS } from "./components/ModelSelector";
 import { ImageOptionsPanel, VideoOptionsPanel, EditOptionsPanel, UpscaleOptionsPanel, MusicOptionsPanel, SoundOptionsPanel, SpeechOptionsPanel, VoiceOptionsPanel, CodeOptionsPanel } from "./components/ActionPanels";
+import TemplatesView from "./components/TemplatesView";
+import ExploreView from "./components/ExploreView";
+import AdditionsView from "./components/AdditionsView";
+import type { VideoOptions, MusicOptions } from "./components/ActionPanels";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -300,6 +305,60 @@ function ImageMessage({ content }: { content: string }) {
   );
 }
 
+// ── Music message renderer ────────────────────────────────────────────────────
+
+function MusicMessage({ content }: { content: string }) {
+  // format: __MUSIC__:<url>||<caption>
+  const raw = content.replace("__MUSIC__:", "");
+  const sepIdx = raw.indexOf("||");
+  const url = sepIdx === -1 ? raw : raw.slice(0, sepIdx);
+  const caption = sepIdx === -1 ? "" : raw.slice(sepIdx + 2);
+
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "generated-music.mp3";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2" style={{ maxWidth: "480px" }}>
+      <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm p-4 flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-100 text-yellow-600">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-zinc-800">Generated Music</p>
+            {caption && <p className="text-xs text-zinc-400 truncate max-w-[320px]">{caption}</p>}
+          </div>
+        </div>
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <audio controls src={url} className="w-full h-10" style={{ borderRadius: "8px" }} />
+        <button
+          onClick={handleDownload}
+          className="self-start flex items-center gap-1.5 rounded-full bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Markdown renderer ────────────────────────────────────────────────────────
 
 function MarkdownContent({ content, streaming }: { content: string; streaming: boolean }) {
@@ -357,6 +416,7 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
 
 export default function Home() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inputValue, setInputValue] = useState("");
 
@@ -375,7 +435,11 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [activeView, setActiveView] = useState<"templates" | "explore" | "additions" | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [likedId, setLikedId] = useState<string | null>(null);
+  const [dislikedId, setDislikedId] = useState<string | null>(null);
+  const [sharedMsgId, setSharedMsgId] = useState<string | null>(null);
 
   // ── Conversation persistence ─────────────────────────────────────────────
   type RecentChat = { id: number; title: string; updated_at: string };
@@ -401,6 +465,12 @@ export default function Home() {
 
   // Video polling
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Active-panel ref — always current, immune to stale closures ────────────
+  // useLayoutEffect fires synchronously after every committed render, guaranteeing
+  // this ref is updated before the browser paints and before the next user event.
+  const activePanelRef = useRef<typeof activePanel>(null);
+  useLayoutEffect(() => { activePanelRef.current = activePanel; });
 
   // ── Voice dictation ───────────────────────────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
@@ -550,8 +620,16 @@ export default function Home() {
     const aiId = (Date.now() + 1).toString();
     setMessages((prev) => [...prev, { id: aiId, role: "assistant", content: "" }]);
 
-    // ── Image generation request ────────────────────────────────────────────
-    if (isImageRequest(text)) {
+    // ── Route by active panel first, then keyword detection ─────────────────
+    // Use activePanelRef (not the closure value) to survive React 18 concurrent
+    // mode where a delayed re-render might leave the closure with a stale value.
+    const panel = activePanelRef.current;
+    const doImage = panel === "image" || (panel === null && isImageRequest(text));
+    const doVideo = panel === "video" || (panel === null && isVideoRequest(text) && !isImageRequest(text));
+    const doMusic = panel === "music";
+
+    // ── Image generation ────────────────────────────────────────────────────
+    if (doImage) {
       try {
         const res = await fetch("/api/image", {
           method: "POST",
@@ -602,13 +680,13 @@ export default function Home() {
       return;
     }
 
-    // ── Video generation request ────────────────────────────────────────────
-    if (isVideoRequest(text) && !isImageRequest(text)) {
+    // ── Video generation ─────────────────────────────────────────────────────
+    if (doVideo) {
       try {
         const res = await fetch("/api/video", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: text }),
+          body: JSON.stringify({ prompt: text, model: videoOpts.model, mode: videoOpts.mode, duration: videoOpts.duration, aspectRatio: videoOpts.ratio }),
         });
         const data = await res.json() as { id?: string; status?: string; videoUrl?: string; error?: string };
         if (!res.ok || data.error) {
@@ -668,6 +746,45 @@ export default function Home() {
           prev.map((m) =>
             m.id === aiId ? { ...m, content: "__VIDEO_ERROR__:Network error. Please try again." } : m
           )
+        );
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    // ── Music generation ─────────────────────────────────────────────────────
+    if (doMusic) {
+      try {
+        const res = await fetch("/api/music", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text, tags: musicOpts.tags, lyrics: musicOpts.lyrics }),
+        });
+        const data = await res.json() as { url?: string; error?: string };
+        if (!res.ok || data.error) {
+          setMessages((prev) =>
+            prev.map((m) => m.id === aiId ? { ...m, content: `Error: ${data.error ?? "Music generation failed"}` } : m)
+          );
+          setIsTyping(false);
+          return;
+        }
+        const musicContent = `__MUSIC__:${data.url}||${text}`;
+        setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: musicContent } : m));
+        setIsTyping(false);
+        if (isLoggedIn && accessToken) {
+          let convId = conversationIdRef.current;
+          if (convId === null) {
+            convId = await createConversation(text, accessToken);
+            if (convId !== null) setActiveConversation(convId);
+          }
+          if (convId !== null) {
+            await saveMessages(convId, [{ role: "user", content: text }, { role: "assistant", content: musicContent }], accessToken);
+            void fetchRecentChats(accessToken);
+          }
+        }
+      } catch {
+        setMessages((prev) =>
+          prev.map((m) => m.id === aiId ? { ...m, content: "Network error. Please try again." } : m)
         );
         setIsTyping(false);
       }
@@ -745,6 +862,38 @@ export default function Home() {
     }
   }
 
+  function handleLike(id: string) {
+    setLikedId((prev) => (prev === id ? null : id));
+    setDislikedId((d) => (d === id ? null : d));
+  }
+
+  function handleDislike(id: string) {
+    setDislikedId((prev) => (prev === id ? null : id));
+    setLikedId((l) => (l === id ? null : l));
+  }
+
+  function handleShareMsg(id: string, text: string) {
+    // Share the message text to clipboard
+    let shareText = text;
+    if (text.startsWith("__IMAGE__:")) shareText = text.replace("__IMAGE__:", "").split("||")[0];
+    else if (text.startsWith("__VIDEO__:") || text.startsWith("__VIDEO_PENDING__:") || text.startsWith("__VIDEO_ERROR__:")) shareText = window.location.href;
+    else if (text.startsWith("__MUSIC__:")) shareText = window.location.href;
+    navigator.clipboard.writeText(shareText);
+    setSharedMsgId(id);
+    setTimeout(() => setSharedMsgId(null), 1500);
+  }
+
+  function handleRegenerate(msgIndex: number) {
+    // Find the last user message before this assistant message
+    const userMsg = [...messages].slice(0, msgIndex).reverse().find((m) => m.role === "user");
+    if (!userMsg || isTyping) return;
+    // Strip the current assistant message and replay
+    const trimmed = messages.slice(0, msgIndex);
+    setMessages(trimmed);
+    setInputValue(userMsg.content);
+    setTimeout(() => handleSend(), 0);
+  }
+
   function handleCopy(id: string, text: string) {
     let copyText = text;
     if (text.startsWith("__IMAGE__:")) copyText = text.replace("__IMAGE__:", "").split("||")[0];
@@ -806,6 +955,7 @@ export default function Home() {
         }))
       );
       setActiveConversation(id);
+      setActiveView(null);
     } catch { /* ignore */ }
   }
 
@@ -849,15 +999,17 @@ export default function Home() {
   }
 
   // ── Quick-action panel state ───────────────────────────────────────
-  const [activePanel, setActivePanel] = useState<"image"|"video"|"edit"|"upscale"|"music"|"sound"|"speech"|"voice"|"code"|null>(null);
+  const [activePanel, setActivePanel] = useState<"image"|"video"|"edit"|"upscale"|"music"|"sound"|"speech"|"voice"|"code"|"visual"|"transcribe"|"search"|"summarize"|"detect"|"plagiarism"|"humanize"|"compare"|"document"|null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [plusMenuMore, setPlusMenuMore] = useState(false);
   const plusMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
         setPlusMenuOpen(false);
+        setPlusMenuMore(false);
       }
     }
     if (plusMenuOpen) document.addEventListener("mousedown", handleClickOutside);
@@ -867,7 +1019,13 @@ export default function Home() {
   // ── Image generation options ─────────────────────────────────────────────
   const [imageModel, setImageModel] = useState("gpt-image-2");
   const [imageRatio, setImageRatio] = useState("1:1hd");
-  const [imageCount, setImageCount] = useState(2);
+  const [imageCount, setImageCount] = useState(1);
+
+  // ── Video generation options ─────────────────────────────────────────────
+  const [videoOpts, setVideoOpts] = useState<VideoOptions>({ model: "kling-o3", mode: "new-video", duration: 5, ratio: "16:9" });
+
+  // ── Music generation options ─────────────────────────────────────────────
+  const [musicOpts, setMusicOpts] = useState<MusicOptions>({ tags: [], lyrics: "" });
 
   // ── Chat context menu (3-dot) ────────────────────────────────────────────
   const [chatMenu, setChatMenu] = useState<number | null>(null);
@@ -935,23 +1093,62 @@ export default function Home() {
 
   function renderPlusMenu() {
     return (
-      <div className="absolute bottom-full left-0 mb-2 w-56 rounded-2xl border border-zinc-100 bg-white py-1.5 shadow-xl z-50">
-        {PLUS_MENU_ITEMS.map((item) => (
-          <button key={item.label} onMouseDown={(e) => { e.preventDefault(); item.action(); }}
-            className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors text-left">
-            <span className="text-zinc-500">{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
-        <div className="mx-4 my-1 border-t border-zinc-100" />
-        <button onMouseDown={(e) => e.preventDefault()}
-          className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors">
-          <div className="flex items-center gap-3">
-            <span className="text-zinc-500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></span>
-            More
-          </div>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
+      <div className="absolute bottom-full left-0 mb-2 rounded-2xl border border-zinc-100 bg-white py-1.5 shadow-xl z-50" style={{ minWidth: plusMenuMore ? "320px" : "224px" }}>
+        {!plusMenuMore ? (
+          <>
+            {PLUS_MENU_ITEMS.map((item) => (
+              <button key={item.label} onMouseDown={(e) => { e.preventDefault(); item.action(); }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors text-left">
+                <span className="text-zinc-500">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+            <div className="mx-4 my-1 border-t border-zinc-100" />
+            <button
+              onMouseDown={(e) => { e.preventDefault(); setPlusMenuMore(true); }}
+              className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-zinc-500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></span>
+                More
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Back header */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-100">
+              <button
+                onMouseDown={(e) => { e.preventDefault(); setPlusMenuMore(false); }}
+                className="text-zinc-400 hover:text-zinc-700 transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span className="text-sm font-medium text-zinc-700">All actions</span>
+            </div>
+            {/* All action tags in a 2-column grid */}
+            <div className="p-3 grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto">
+              {ALL_ACTIONS.map((action) => (
+                <button
+                  key={action.label}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleActionClick(action);
+                    setPlusMenuOpen(false);
+                    setPlusMenuMore(false);
+                  }}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-all text-left ${
+                    activePanelRef.current === action.panel && action.panel
+                      ? `${action.text} ${action.border} ${action.bg} ring-1 ring-current`
+                      : `${action.text} ${action.border} ${action.bg} hover:opacity-80`
+                  }`}
+                >
+                  <span className={`inline-flex shrink-0 ${action.text}`}>{action.icon}</span>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -959,7 +1156,7 @@ export default function Home() {
   type ActionItem = {
     label: string;
     cmd: string;
-    panel?: "image"|"video"|"edit"|"upscale"|"music"|"sound"|"speech"|"voice"|"code";
+    panel?: string;
     text: string; border: string; bg: string;
     icon: React.ReactNode;
   };
@@ -977,7 +1174,7 @@ export default function Home() {
     { label: "Upscale",   cmd: "/upscale",   panel: "upscale",
       text: "text-orange-500",  border: "border-orange-200",  bg: "bg-orange-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 3 21 3 21 9"/><path d="M21 3l-7 7"/><polyline points="9 21 3 21 3 15"/><path d="M3 21l7-7"/></svg> },
-    { label: "Visual",    cmd: "/visual",
+    { label: "Visual",    cmd: "/visual",    panel: "visual",
       text: "text-amber-600",   border: "border-amber-200",   bg: "bg-amber-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg> },
     { label: "Music",     cmd: "/music",     panel: "music",
@@ -992,28 +1189,28 @@ export default function Home() {
     { label: "Voice",     cmd: "/voice",     panel: "voice",
       text: "text-emerald-600", border: "border-emerald-200", bg: "bg-emerald-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 12h2M6 8v8M10 5v14M14 8v8M18 6v12M22 12h-2"/></svg> },
-    { label: "Transcribe",cmd: "/transcribe",
+    { label: "Transcribe",cmd: "/transcribe", panel: "transcribe",
       text: "text-teal-600",    border: "border-teal-200",    bg: "bg-teal-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg> },
-    { label: "Search",    cmd: "/search",
+    { label: "Search",    cmd: "/search",    panel: "search",
       text: "text-cyan-600",    border: "border-cyan-200",    bg: "bg-cyan-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
-    { label: "Summarize", cmd: "/summarize",
+    { label: "Summarize", cmd: "/summarize", panel: "summarize",
       text: "text-sky-600",     border: "border-sky-200",     bg: "bg-sky-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="15" y1="18" x2="3" y2="18"/></svg> },
-    { label: "Detect",    cmd: "/detect",
+    { label: "Detect",    cmd: "/detect",    panel: "detect",
       text: "text-blue-600",    border: "border-blue-200",    bg: "bg-blue-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> },
-    { label: "Plagiarism",cmd: "/plagiarism",
+    { label: "Plagiarism",cmd: "/plagiarism", panel: "plagiarism",
       text: "text-indigo-600",  border: "border-indigo-200",  bg: "bg-indigo-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg> },
-    { label: "Humanize",  cmd: "/humanize",
+    { label: "Humanize",  cmd: "/humanize",  panel: "humanize",
       text: "text-violet-600",  border: "border-violet-200",  bg: "bg-violet-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-    { label: "Compare",   cmd: "/compare",
+    { label: "Compare",   cmd: "/compare",   panel: "compare",
       text: "text-purple-600",  border: "border-purple-200",  bg: "bg-purple-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg> },
-    { label: "Document",  cmd: "/document",
+    { label: "Document",  cmd: "/document",  panel: "document",
       text: "text-fuchsia-600", border: "border-fuchsia-200", bg: "bg-fuchsia-50",
       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
     { label: "Code",      cmd: "/code",      panel: "code",
@@ -1025,7 +1222,7 @@ export default function Home() {
 
   function handleActionClick(action: ActionItem) {
     if (action.panel) {
-      setActivePanel((prev) => prev === action.panel ? null : action.panel!);
+      setActivePanel((prev) => prev === action.panel ? null : action.panel as typeof prev);
     } else {
       setActivePanel(null);
       setInputValue(action.cmd + " ");
@@ -1068,12 +1265,27 @@ export default function Home() {
           <NavItem
             icon={<IconNewChat />}
             label="New chat"
-            active={messages.length === 0 && conversationId === null}
-            onClick={() => { setMessages([]); setActiveConversation(null); }}
+            active={messages.length === 0 && conversationId === null && activeView === null}
+            onClick={() => { setMessages([]); setActiveConversation(null); setInputValue(""); setActivePanel(null); setActiveView(null); }}
           />
-          <NavItem icon={<IconKeep />} label="Keep" />
-          <NavItem icon={<IconAdditions />} label="Additions" />
-          <NavItem icon={<IconExplore />} label="Explore" />
+          <NavItem
+            icon={<IconKeep />}
+            label="Templates"
+            active={activeView === "templates"}
+            onClick={() => setActiveView((v) => v === "templates" ? null : "templates")}
+          />
+          <NavItem
+            icon={<IconAdditions />}
+            label="Additions"
+            active={activeView === "additions"}
+            onClick={() => setActiveView((v) => v === "additions" ? null : "additions")}
+          />
+          <NavItem
+            icon={<IconExplore />}
+            label="Explore"
+            active={activeView === "explore"}
+            onClick={() => setActiveView((v) => v === "explore" ? null : "explore")}
+          />
           <NavItem
             icon={<IconSearch />}
             label="Search"
@@ -1245,12 +1457,40 @@ export default function Home() {
               onClose={() => setModelSelectorOpen(false)}
             />
           )}
-          <div className="ml-auto text-zinc-400 hover:text-zinc-600 cursor-pointer transition-colors">
+          {/* Upgrade button */}
+          <button
+            onClick={() => router.push("/pricing")}
+            className="ml-auto flex items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-violet-600 hover:to-indigo-600 active:scale-95 transition-all duration-150"
+            title="Upgrade plan"
+          >
+            {/* Zap / lightning bolt */}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 1L2 7h4.5L5 11l5-6H6L7 1z" fill="currentColor" />
+            </svg>
+            Upgrade
+          </button>
+          <div className="ml-3 text-zinc-400 hover:text-zinc-600 cursor-pointer transition-colors">
             <IconHelp />
           </div>
         </header>
 
-        {messages.length === 0 ? (
+        {activeView === "explore" ? (
+          <ExploreView />
+        ) : activeView === "additions" ? (
+          <AdditionsView />
+        ) : activeView === "templates" ? (
+          <TemplatesView
+            onUseTemplate={(prompt) => {
+              setMessages([]);
+              setActiveConversation(null);
+              setConversationId(null);
+              conversationIdRef.current = null;
+              setActivePanel(null);
+              setInputValue(prompt);
+              setActiveView(null);
+            }}
+          />
+        ) : messages.length === 0 ? (
           /* ── Empty / landing state ── */
           <main className="flex flex-1 flex-col items-center justify-start pt-[38vh] px-6 pb-4 overflow-y-auto" style={{scrollbarWidth:"none"} as React.CSSProperties}>
             <h1 className="mb-8 text-4xl font-bold tracking-tight text-zinc-900">
@@ -1276,10 +1516,30 @@ export default function Home() {
                         onCountChange={setImageCount}
                       />
                     )}
-                    {activePanel === "video" && <VideoOptionsPanel onClose={() => setActivePanel(null)} />}
+                    {activePanel === "video" && (
+                      <VideoOptionsPanel
+                        onClose={() => setActivePanel(null)}
+                        model={videoOpts.model}
+                        mode={videoOpts.mode}
+                        duration={videoOpts.duration}
+                        ratio={videoOpts.ratio}
+                        onModelChange={(v) => setVideoOpts((o) => ({ ...o, model: v }))}
+                        onModeChange={(v) => setVideoOpts((o) => ({ ...o, mode: v }))}
+                        onDurationChange={(v) => setVideoOpts((o) => ({ ...o, duration: v }))}
+                        onRatioChange={(v) => setVideoOpts((o) => ({ ...o, ratio: v }))}
+                      />
+                    )}
                     {activePanel === "edit" && <EditOptionsPanel onClose={() => setActivePanel(null)} />}
                     {activePanel === "upscale" && <UpscaleOptionsPanel onClose={() => setActivePanel(null)} />}
-                    {activePanel === "music" && <MusicOptionsPanel onClose={() => setActivePanel(null)} />}
+                    {activePanel === "music" && (
+                      <MusicOptionsPanel
+                        onClose={() => setActivePanel(null)}
+                        tags={musicOpts.tags}
+                        lyrics={musicOpts.lyrics}
+                        onTagsChange={(t) => setMusicOpts((o) => ({ ...o, tags: t }))}
+                        onLyricsChange={(l) => setMusicOpts((o) => ({ ...o, lyrics: l }))}
+                      />
+                    )}
                     {activePanel === "sound" && <SoundOptionsPanel onClose={() => setActivePanel(null)} />}
                     {activePanel === "speech" && <SpeechOptionsPanel onClose={() => setActivePanel(null)} />}
                     {activePanel === "voice" && <VoiceOptionsPanel onClose={() => setActivePanel(null)} />}
@@ -1299,27 +1559,16 @@ export default function Home() {
                   </button>
                 </div>
                 {activePanel && (() => {
-                  const colorMap: Record<string,string> = { image:"text-pink-500", video:"text-rose-500", edit:"text-red-500", upscale:"text-orange-500", music:"text-yellow-500", sound:"text-lime-500", speech:"text-green-500", voice:"text-emerald-500", code:"text-slate-500" };
-                  const iconMap: Record<string,React.ReactNode> = {
-                    image: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
-                    video: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10 9 15 12 10 15 10 9"/></svg>,
-                    edit: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-                    upscale: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 3 21 3 21 9"/><path d="M21 3l-7 7"/><polyline points="9 21 3 21 3 15"/><path d="M3 21l7-7"/></svg>,
-                    music: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>,
-                    sound: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>,
-                    speech: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>,
-                    voice: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 12h2M6 8v8M10 5v14M14 8v8M18 6v12M22 12h-2"/></svg>,
-                    code: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
-                  };
-                  const c = colorMap[activePanel] ?? "text-zinc-500";
-                  return (<><span className={`shrink-0 ${c}`}>{iconMap[activePanel]}</span><span className={`shrink-0 text-sm font-medium ${c}`}>/{activePanel}</span></>);
+                  const activeAction = ALL_ACTIONS.find(a => a.panel === activePanel);
+                  if (!activeAction) return null;
+                  return (<><span className={`shrink-0 ${activeAction.text}`}>{activeAction.icon}</span><span className={`shrink-0 text-sm font-medium ${activeAction.text}`}>{activeAction.cmd}</span></>);
                 })()}
                 <input
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder={activePanel ? `Describe your ${activePanel}...` : "Ask anything..."}
+                  placeholder={activePanel ? (ALL_ACTIONS.find(a => a.panel === activePanel)?.label ? `Describe your ${ALL_ACTIONS.find(a => a.panel === activePanel)!.label.toLowerCase()}...` : "Ask anything...") : "Ask anything..."}
                   className="flex-1 bg-transparent text-sm text-zinc-700 placeholder-zinc-400 outline-none"
                 />
                 <button
@@ -1421,6 +1670,8 @@ export default function Home() {
                           msg.content.startsWith("__VIDEO_PENDING__:") ||
                           msg.content.startsWith("__VIDEO_ERROR__:") ? (
                         <VideoMessage content={msg.content} />
+                      ) : msg.content.startsWith("__MUSIC__:") ? (
+                        <MusicMessage content={msg.content} />
                       ) : (
                         <MarkdownContent
                           content={msg.content}
@@ -1442,21 +1693,56 @@ export default function Home() {
                           )}
                         </button>
                         {/* Thumbs up */}
-                        <button title="Good response" className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                        <button
+                          onClick={() => handleLike(msg.id)}
+                          title={likedId === msg.id ? "Liked" : "Good response"}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                            likedId === msg.id ? "text-green-500 bg-green-50" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                          }`}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill={likedId === msg.id ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
                         </button>
                         {/* Thumbs down */}
-                        <button title="Bad response" className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                        <button
+                          onClick={() => handleDislike(msg.id)}
+                          title={dislikedId === msg.id ? "Disliked" : "Bad response"}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                            dislikedId === msg.id ? "text-red-500 bg-red-50" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                          }`}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill={dislikedId === msg.id ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
                         </button>
                         {/* Share */}
-                        <button title="Share" className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                        <button
+                          onClick={() => handleShareMsg(msg.id, msg.content)}
+                          title={sharedMsgId === msg.id ? "Copied!" : "Share"}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                            sharedMsgId === msg.id ? "text-blue-500 bg-blue-50" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                          }`}
+                        >
+                          {sharedMsgId === msg.id ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                          )}
                         </button>
                         {/* Regenerate */}
-                        <button title="Regenerate" className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                        </button>
+                        {(() => {
+                          const msgIndex = messages.indexOf(msg);
+                          const isLast = msgIndex === messages.length - 1;
+                          return (
+                            <button
+                              onClick={() => handleRegenerate(msgIndex)}
+                              title="Regenerate"
+                              disabled={isTyping}
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                                isTyping ? "text-zinc-200 cursor-not-allowed" : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                              } ${isLast ? "" : "opacity-0 group-hover:opacity-100"}`}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            </button>
+                          );
+                        })()}
                         {/* More */}
                         <button title="More" className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
@@ -1492,12 +1778,25 @@ export default function Home() {
                       </svg>
                     </button>
                   </div>
+                  {activePanel && (() => {
+                    const activeAction = ALL_ACTIONS.find(a => a.panel === activePanel);
+                    if (!activeAction) return null;
+                    return (<><span className={`shrink-0 ${activeAction.text}`}>{activeAction.icon}</span><span className={`shrink-0 text-sm font-medium ${activeAction.text}`}>{activeAction.cmd}</span></>);
+                  })()}
                   <input
                     type="text"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                    placeholder="Ask anything..."
+                    placeholder={activePanel ? ({
+                      image:"Describe your image...", video:"Describe your video...", edit:"Describe the edit...",
+                      upscale:"Describe the upscale...", music:"Describe your music...", sound:"Describe the sound...",
+                      speech:"Enter text to convert to speech...", voice:"Describe your voice...", code:"Describe your code task...",
+                      visual:"Describe what to analyze visually...", transcribe:"Paste audio URL or describe...",
+                      search:"What would you like to search?", summarize:"Paste text or URL to summarize...",
+                      detect:"What would you like to detect?", plagiarism:"Paste text to check for plagiarism...",
+                      humanize:"Paste AI text to humanize...", compare:"Describe what to compare...", document:"Describe your document task...",
+                    } as Record<string,string>)[activePanel] ?? `Describe your ${activePanel}...` : "Ask anything..."}
                     className="flex-1 bg-transparent text-sm text-zinc-700 placeholder-zinc-400 outline-none"
                     autoFocus
                   />
@@ -1569,7 +1868,7 @@ export default function Home() {
               {/* New chat row */}
               {!searchQuery && (
                 <button
-                  onClick={() => { setMessages([]); setActiveConversation(null); setSearchOpen(false); }}
+                  onClick={() => { setMessages([]); setActiveConversation(null); setInputValue(""); setActivePanel(null); setSearchOpen(false); }}
                   className="flex w-full items-center gap-3 px-5 py-3.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 transition-colors"
                 >
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

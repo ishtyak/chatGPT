@@ -170,12 +170,29 @@ const ASPECT_RATIOS_VIDEO = [
   { id: "1:1", label: "1:1", icon: (sel: boolean) => <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="1.5" stroke={sel ? "white" : "#52525b"} strokeWidth="1.8"/></svg> },
 ];
 
-export function VideoOptionsPanel({ onClose }: { onClose: () => void }) {
-  const [model, setModel] = useState("kling-o3");
-  const [mode, setMode] = useState("new-video");
-  const [duration, setDuration] = useState(3);
-  const [ratio, setRatio] = useState("16:9");
+export type VideoOptions = { model: string; mode: string; duration: number; ratio: string };
 
+export function VideoOptionsPanel({
+  onClose,
+  model,
+  mode,
+  duration,
+  ratio,
+  onModelChange,
+  onModeChange,
+  onDurationChange,
+  onRatioChange,
+}: {
+  onClose: () => void;
+  model: string;
+  mode: string;
+  duration: number;
+  ratio: string;
+  onModelChange: (v: string) => void;
+  onModeChange: (v: string) => void;
+  onDurationChange: (v: number) => void;
+  onRatioChange: (v: string) => void;
+}) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white shadow-lg">
       {/* Header */}
@@ -201,7 +218,7 @@ export function VideoOptionsPanel({ onClose }: { onClose: () => void }) {
             <p className="mb-2 text-[10px] font-semibold tracking-widest text-zinc-400 uppercase">Model</p>
             <div className="flex flex-wrap gap-1.5">
               {VIDEO_MODELS.map((m) => (
-                <ModelPill key={m.id} label={m.label} selected={model === m.id} onClick={() => setModel(m.id)} />
+                <ModelPill key={m.id} label={m.label} selected={model === m.id} onClick={() => onModelChange(m.id)} />
               ))}
             </div>
           </div>
@@ -217,7 +234,7 @@ export function VideoOptionsPanel({ onClose }: { onClose: () => void }) {
                 type="range"
                 min={3} max={15} step={1}
                 value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
+                onChange={(e) => onDurationChange(Number(e.target.value))}
                 className="flex-1 h-1.5 appearance-none rounded-full bg-zinc-200 accent-zinc-900 cursor-pointer"
               />
               <span className="text-xs text-zinc-400">15s</span>
@@ -233,7 +250,7 @@ export function VideoOptionsPanel({ onClose }: { onClose: () => void }) {
               {VIDEO_MODES.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => setMode(m.id)}
+                  onClick={() => onModeChange(m.id)}
                   className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                     mode === m.id
                       ? "border-zinc-900 bg-zinc-900 text-white"
@@ -259,7 +276,7 @@ export function VideoOptionsPanel({ onClose }: { onClose: () => void }) {
               {ASPECT_RATIOS_VIDEO.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => setRatio(r.id)}
+                  onClick={() => onRatioChange(r.id)}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                     ratio === r.id
                       ? "border-zinc-900 bg-zinc-900 text-white"
@@ -389,11 +406,23 @@ export function UpscaleOptionsPanel({ onClose }: { onClose: () => void }) {
 
 const MUSIC_TAGS = ["Pop","Electronic","Rock","Classical","Rap","Folk","Country","Blues","Hip hop","Jazz","Metal","Alternative rock","Dance","Indie rock","Latin","Pop rock","R&b","Soul","Ambient","Lo-fi"];
 
-export function MusicOptionsPanel({ onClose }: { onClose: () => void }) {
-  const [tags, setTags] = useState<string[]>([]);
-  const [lyrics, setLyrics] = useState("");
+export type MusicOptions = { tags: string[]; lyrics: string };
+
+export function MusicOptionsPanel({
+  onClose,
+  tags,
+  lyrics,
+  onTagsChange,
+  onLyricsChange,
+}: {
+  onClose: () => void;
+  tags: string[];
+  lyrics: string;
+  onTagsChange: (t: string[]) => void;
+  onLyricsChange: (l: string) => void;
+}) {
   function toggleTag(t: string) {
-    setTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 3 ? [...prev, t] : prev);
+    onTagsChange(tags.includes(t) ? tags.filter((x) => x !== t) : tags.length < 3 ? [...tags, t] : tags);
   }
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white shadow-lg">
@@ -411,7 +440,7 @@ export function MusicOptionsPanel({ onClose }: { onClose: () => void }) {
         </div>
         <div>
           <SectionLabel>Custom Lyrics (Optional)</SectionLabel>
-          <textarea value={lyrics} onChange={(e) => setLyrics(e.target.value)} placeholder="Enter custom lyrics or leave empty for AI-generated lyrics..." rows={3}
+          <textarea value={lyrics} onChange={(e) => onLyricsChange(e.target.value)} placeholder="Enter custom lyrics or leave empty for AI-generated lyrics..." rows={3}
             className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 outline-none focus:border-zinc-400 resize-none" />
           <p className="mt-1 text-[11px] text-zinc-400">Leave empty for instrumental or let AI write lyrics based on your prompt.</p>
         </div>
