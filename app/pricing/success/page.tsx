@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 function SuccessContent() {
   const params = useSearchParams();
@@ -16,16 +16,40 @@ function SuccessContent() {
     }
     // Verify session server-side
     fetch(`/api/stripe/verify?session_id=${encodeURIComponent(sessionId)}`)
-      .then((r) => (r.ok ? setStatus("ok") : setStatus("error")))
+      .then((r) => {
+        if (r.ok) {
+          setStatus("ok");
+          try {
+            localStorage.setItem("hasPlan", "true");
+          } catch (e) {}
+        } else {
+          setStatus("error");
+        }
+      })
       .catch(() => setStatus("error"));
   }, [sessionId]);
 
   if (status === "loading") {
     return (
       <div className="flex flex-col items-center gap-4">
-        <svg className="animate-spin h-10 w-10 text-gray-400" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        <svg
+          className="animate-spin h-10 w-10 text-gray-400"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v8H4z"
+          />
         </svg>
         <p className="text-gray-500 text-sm">Confirming your subscription…</p>
       </div>
@@ -35,10 +59,15 @@ function SuccessContent() {
   if (status === "error") {
     return (
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-3xl">✕</div>
-        <h1 className="text-2xl font-bold text-gray-900">Something went wrong</h1>
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-3xl">
+          ✕
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Something went wrong
+        </h1>
         <p className="text-gray-500 text-sm max-w-xs">
-          We could not verify your payment. If you were charged, please contact support.
+          We could not verify your payment. If you were charged, please contact
+          support.
         </p>
         <button
           onClick={() => router.push("/pricing")}
@@ -54,7 +83,11 @@ function SuccessContent() {
     <div className="flex flex-col items-center gap-4 text-center">
       {/* Animated checkmark */}
       <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-        <svg className="w-10 h-10 text-green-500" viewBox="0 0 24 24" fill="none">
+        <svg
+          className="w-10 h-10 text-green-500"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
           <path
             d="M5 13l4 4L19 7"
             stroke="currentColor"
