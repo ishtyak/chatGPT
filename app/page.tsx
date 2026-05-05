@@ -9,7 +9,7 @@ import { ImageOptionsPanel, VideoOptionsPanel, EditOptionsPanel, UpscaleOptionsP
 import TemplatesView from "./components/TemplatesView";
 import ExploreView from "./components/ExploreView";
 import AdditionsView from "./components/AdditionsView";
-import type { VideoOptions, MusicOptions } from "./components/ActionPanels";
+import type { VideoOptions, MusicOptions, EditOptions } from "./components/ActionPanels";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -263,6 +263,14 @@ function ImageMessage({ content }: { content: string }) {
 
   const handleDownload = async (url: string, idx: number) => {
     try {
+      // data URLs (base64 edited images) can be downloaded directly
+      if (url.startsWith("data:")) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `edited-image${urls.length > 1 ? `-${idx + 1}` : ""}.png`;
+        a.click();
+        return;
+      }
       const res = await fetch(url);
       const blob = await res.blob();
       const a = document.createElement("a");
@@ -402,8 +410,8 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
       onClick={onClick}
       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
         active
-          ? "bg-zinc-700 text-white"
-          : "text-zinc-400 hover:bg-zinc-700/60 hover:text-white"
+          ? "bg-zinc-100 text-zinc-900"
+          : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
       }`}
     >
       {icon}
@@ -627,6 +635,7 @@ export default function Home() {
     const doImage = panel === "image" || (panel === null && isImageRequest(text));
     const doVideo = panel === "video" || (panel === null && isVideoRequest(text) && !isImageRequest(text));
     const doMusic = panel === "music";
+    const doEdit  = panel === "edit";
 
     // ── Image generation ────────────────────────────────────────────────────
     if (doImage) {
@@ -779,6 +788,62 @@ export default function Home() {
           }
           if (convId !== null) {
             await saveMessages(convId, [{ role: "user", content: text }, { role: "assistant", content: musicContent }], accessToken);
+            void fetchRecentChats(accessToken);
+          }
+        }
+      } catch {
+        setMessages((prev) =>
+          prev.map((m) => m.id === aiId ? { ...m, content: "Network error. Please try again." } : m)
+        );
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    // ── Image editing ────────────────────────────────────────────────────────
+    if (doEdit) {
+      if (!editImageFile) {
+        setMessages((prev) =>
+          prev.map((m) => m.id === aiId ? { ...m, content: "Please attach an image to edit using the + button." } : m)
+        );
+        setIsTyping(false);
+        return;
+      }
+      try {
+        const fd = new FormData();
+        fd.append("image", editImageFile);
+        fd.append("prompt", text);
+        fd.append("model", editOpts.model);
+        fd.append("size", editOpts.size);
+        fd.append("quality", editOpts.quality);
+        fd.append("count", String(editOpts.count));
+        const res = await fetch("/api/image/edit", { method: "POST", body: fd });
+        const data = await res.json() as { urls?: string[]; url?: string; error?: string };
+        if (!res.ok) {
+          setMessages((prev) =>
+            prev.map((m) => m.id === aiId ? { ...m, content: `Error: ${data.error ?? "Image editing failed"}` } : m)
+          );
+          setIsTyping(false);
+          return;
+        }
+        const urls: string[] = Array.isArray(data.urls) ? data.urls : [data.url ?? ""];
+        const imageContent = `__IMAGE__:${urls.join("|")}||${text}`;
+        setMessages((prev) => prev.map((m) => m.id === aiId ? { ...m, content: imageContent } : m));
+        setIsTyping(false);
+        setEditImageFile(null);
+        setEditImagePreview(null);
+        if (isLoggedIn && accessToken) {
+          let convId = conversationIdRef.current;
+          if (convId === null) {
+            convId = await createConversation(text, accessToken);
+            if (convId !== null) setActiveConversation(convId);
+          }
+          if (convId !== null) {
+            await saveMessages(
+              convId,
+              [{ role: "user", content: text }, { role: "assistant", content: imageContent }],
+              accessToken
+            );
             void fetchRecentChats(accessToken);
           }
         }
@@ -1027,6 +1092,12 @@ export default function Home() {
   // ── Music generation options ─────────────────────────────────────────────
   const [musicOpts, setMusicOpts] = useState<MusicOptions>({ tags: [], lyrics: "" });
 
+  // ── Image editing options ────────────────────────────────────────────────
+  const [editOpts, setEditOpts] = useState<EditOptions>({ model: "GPT Image 2", size: "1:1", quality: "Low", count: 2 });
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
   // ── Chat context menu (3-dot) ────────────────────────────────────────────
   const [chatMenu, setChatMenu] = useState<number | null>(null);
   const [shareToast, setShareToast] = useState(false);
@@ -1241,20 +1312,18 @@ export default function Home() {
 
       {/* ── Sidebar ── */}
       <aside
-        className={`flex flex-col bg-[#1a1a1a] transition-all duration-300 ${
+        className={`flex flex-col bg-white border-r border-zinc-200 transition-all duration-300 ${
           sidebarOpen ? "w-64 min-w-[256px]" : "w-0 overflow-hidden"
         }`}
       >
         {/* Sidebar header */}
         <div className="flex items-center justify-between px-4 pt-5 pb-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#1a1a1a">
-              <path d="M13.8 4.5h-3.6L4.5 19.5h3.2l1.4-3.9h6.8l1.4 3.9h3.2L13.8 4.5zm-3.9 8.6 2.1-5.9 2.1 5.9H9.9z"/>
-            </svg>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full">
+            <Image src="/logo.png" alt="Softkey AI Logo" width={24} height={24} className="object-contain" />
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="text-zinc-500 hover:text-white transition-colors"
+            className="text-zinc-400 hover:text-zinc-700 transition-colors"
           >
             <IconSidebarToggle />
           </button>
@@ -1299,7 +1368,7 @@ export default function Home() {
             <div className="px-2 py-2">
               {groupChatsByDate(recentChats, "").map((group) => (
                 <div key={group.label} className="mb-2">
-                  <p className="px-3 pb-1 text-xs font-medium text-zinc-500">{group.label}</p>
+                  <p className="px-3 pb-1 text-xs font-medium text-zinc-400">{group.label}</p>
                   <div className="flex flex-col gap-0.5">
                     {group.chats.map((chat) => (
                       <div key={chat.id} className="relative group/item">
@@ -1307,8 +1376,8 @@ export default function Home() {
                         <div
                           className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer ${
                             conversationId === chat.id
-                              ? "bg-zinc-700 text-white"
-                              : "text-zinc-400 hover:bg-zinc-700/60 hover:text-white"
+                              ? "bg-zinc-100 text-zinc-900"
+                              : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
                           }`}
                         >
                           {/* Title (clickable) */}
@@ -1325,7 +1394,7 @@ export default function Home() {
                           {/* 3-dot trigger */}
                           <button
                             onClick={(e) => { e.stopPropagation(); setChatMenu(chatMenu === chat.id ? null : chat.id); }}
-                            className="ml-auto shrink-0 opacity-0 group-hover/item:opacity-100 focus:opacity-100 rounded p-0.5 hover:bg-zinc-600 transition-opacity"
+                            className="ml-auto shrink-0 opacity-0 group-hover/item:opacity-100 focus:opacity-100 rounded p-0.5 hover:bg-zinc-200 transition-opacity"
                             title="More options"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -1338,11 +1407,11 @@ export default function Home() {
                         {chatMenu === chat.id && (
                           <div
                             ref={chatMenuRef}
-                            className="absolute left-0 top-full mt-1 z-50 w-44 rounded-xl border border-zinc-700 bg-zinc-800 py-1 shadow-xl"
+                            className="absolute left-0 top-full mt-1 z-50 w-44 rounded-xl border border-zinc-200 bg-white py-1 shadow-xl"
                           >
                             <button
                               onClick={() => shareConversation(chat.id)}
-                              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors"
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                 <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
@@ -1350,10 +1419,10 @@ export default function Home() {
                               </svg>
                               Share
                             </button>
-                            <div className="mx-3 my-1 border-t border-zinc-700/60" />
+                            <div className="mx-3 my-1 border-t border-zinc-200" />
                             <button
                               onClick={() => deleteConversation(chat.id)}
-                              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 hover:text-red-300 transition-colors"
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                 <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
@@ -1373,7 +1442,7 @@ export default function Home() {
         </div>
 
         {/* Bottom: user info or sign-up */}
-        <div className="border-t border-zinc-700/50 px-4 py-4">
+        <div className="border-t border-zinc-200 px-4 py-4">
           {isLoggedIn ? (
             <div className="flex items-center gap-3">
               <div className="relative flex-shrink-0">
@@ -1391,13 +1460,13 @@ export default function Home() {
                     {userInitial}
                   </div>
                 )}
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#1a1a1a] bg-green-400" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-400" />
               </div>
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium text-white">{userName}</span>
+                <span className="truncate text-sm font-medium text-zinc-900">{userName}</span>
                 <button
                   onClick={() => signOut()}
-                  className="text-left text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="text-left text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
                 >
                   Sign out
                 </button>
@@ -1406,17 +1475,17 @@ export default function Home() {
           ) : (
             <button
               onClick={() => setAuthModal("signup")}
-              className="flex w-full items-center gap-3 rounded-lg px-1 py-1 hover:bg-zinc-700/40 transition-colors group"
+              className="flex w-full items-center gap-3 rounded-lg px-1 py-1 hover:bg-zinc-100 transition-colors group"
             >
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-700 text-zinc-300 group-hover:bg-zinc-600">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
               </div>
               <div className="flex flex-col items-start min-w-0">
-                <span className="text-sm font-medium text-white">Sign up now</span>
-                <span className="text-xs text-zinc-500">Sign up to save your chats</span>
+                <span className="text-sm font-medium text-zinc-900">Sign up now</span>
+                <span className="text-xs text-zinc-400">Sign up to save your chats</span>
               </div>
             </button>
           )}
@@ -1529,7 +1598,13 @@ export default function Home() {
                         onRatioChange={(v) => setVideoOpts((o) => ({ ...o, ratio: v }))}
                       />
                     )}
-                    {activePanel === "edit" && <EditOptionsPanel onClose={() => setActivePanel(null)} />}
+                    {activePanel === "edit" && <EditOptionsPanel onClose={() => setActivePanel(null)}
+                      model={editOpts.model} size={editOpts.size} quality={editOpts.quality} count={editOpts.count}
+                      onModelChange={(m) => setEditOpts((o) => ({ ...o, model: m }))}
+                      onSizeChange={(s) => setEditOpts((o) => ({ ...o, size: s }))}
+                      onQualityChange={(q) => setEditOpts((o) => ({ ...o, quality: q }))}
+                      onCountChange={(n) => setEditOpts((o) => ({ ...o, count: n }))}
+                    />}
                     {activePanel === "upscale" && <UpscaleOptionsPanel onClose={() => setActivePanel(null)} />}
                     {activePanel === "music" && (
                       <MusicOptionsPanel
@@ -1547,17 +1622,51 @@ export default function Home() {
                   </div>
                 )}
 
+              {/* Hidden file input for image editing */}
+              <input
+                ref={editFileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setEditImageFile(file);
+                  const reader = new FileReader();
+                  reader.onload = (ev) => setEditImagePreview(ev.target?.result as string);
+                  reader.readAsDataURL(file);
+                  e.target.value = "";
+                }}
+              />
               <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 py-3 shadow-sm focus-within:border-zinc-400 focus-within:shadow-md transition-all">
                 <div ref={plusMenuRef} className="relative shrink-0">
-                  {plusMenuOpen && renderPlusMenu()}
+                  {plusMenuOpen && activePanel !== "edit" && renderPlusMenu()}
                   <button
-                    onClick={() => setPlusMenuOpen((v) => !v)}
-                    className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors ${plusMenuOpen ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"}`}>
+                    onClick={() => {
+                      if (activePanel === "edit") {
+                        editFileInputRef.current?.click();
+                      } else {
+                        setPlusMenuOpen((v) => !v);
+                      }
+                    }}
+                    className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors ${plusMenuOpen && activePanel !== "edit" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"}`}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
                   </button>
                 </div>
+                {editImagePreview && activePanel === "edit" && (
+                  <div className="relative shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={editImagePreview} alt="To edit" className="h-8 w-8 rounded-lg object-cover border border-zinc-200" />
+                    <button
+                      onClick={() => { setEditImageFile(null); setEditImagePreview(null); }}
+                      className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-zinc-700 text-white"
+                    >
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                )}
                 {activePanel && (() => {
                   const activeAction = ALL_ACTIONS.find(a => a.panel === activePanel);
                   if (!activeAction) return null;
@@ -1568,7 +1677,7 @@ export default function Home() {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder={activePanel ? (ALL_ACTIONS.find(a => a.panel === activePanel)?.label ? `Describe your ${ALL_ACTIONS.find(a => a.panel === activePanel)!.label.toLowerCase()}...` : "Ask anything...") : "Ask anything..."}
+                  placeholder={activePanel === "edit" ? (editImagePreview ? "Describe your edit..." : "Click + to upload image, then describe edit...") : activePanel ? (ALL_ACTIONS.find(a => a.panel === activePanel)?.label ? `Describe your ${ALL_ACTIONS.find(a => a.panel === activePanel)!.label.toLowerCase()}...` : "Ask anything...") : "Ask anything..."}
                   className="flex-1 bg-transparent text-sm text-zinc-700 placeholder-zinc-400 outline-none"
                 />
                 <button
@@ -1769,15 +1878,33 @@ export default function Home() {
               <div className="mx-auto w-full max-w-2xl">
                 <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 py-3 shadow-sm focus-within:border-zinc-400 focus-within:shadow-md transition-all">
                   <div ref={plusMenuRef} className="relative shrink-0">
-                    {plusMenuOpen && renderPlusMenu()}
+                    {plusMenuOpen && activePanel !== "edit" && renderPlusMenu()}
                     <button
-                      onClick={() => setPlusMenuOpen((v) => !v)}
-                      className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors ${plusMenuOpen ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"}`}>
+                      onClick={() => {
+                        if (activePanel === "edit") {
+                          editFileInputRef.current?.click();
+                        } else {
+                          setPlusMenuOpen((v) => !v);
+                        }
+                      }}
+                      className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors ${plusMenuOpen && activePanel !== "edit" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"}`}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                       </svg>
                     </button>
                   </div>
+                  {editImagePreview && activePanel === "edit" && (
+                    <div className="relative shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={editImagePreview} alt="To edit" className="h-8 w-8 rounded-lg object-cover border border-zinc-200" />
+                      <button
+                        onClick={() => { setEditImageFile(null); setEditImagePreview(null); }}
+                        className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-zinc-700 text-white"
+                      >
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  )}
                   {activePanel && (() => {
                     const activeAction = ALL_ACTIONS.find(a => a.panel === activePanel);
                     if (!activeAction) return null;
@@ -1788,8 +1915,8 @@ export default function Home() {
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                    placeholder={activePanel ? ({
-                      image:"Describe your image...", video:"Describe your video...", edit:"Describe the edit...",
+                    placeholder={activePanel === "edit" ? (editImagePreview ? "Describe your edit..." : "Click + to upload image, then describe edit...") : activePanel ? ({
+                      image:"Describe your image...", video:"Describe your video...",
                       upscale:"Describe the upscale...", music:"Describe your music...", sound:"Describe the sound...",
                       speech:"Enter text to convert to speech...", voice:"Describe your voice...", code:"Describe your code task...",
                       visual:"Describe what to analyze visually...", transcribe:"Paste audio URL or describe...",

@@ -321,11 +321,29 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 const EDIT_MODELS = ["Flux 2 Flex","Nano Banana","Nano Banana 2","GPT Image 2","Grok Imagine","Kling O3","Kling 3.0","Seedream 4.5","Seedream 5.0"];
 const EDIT_SIZES = ["1:1","4:3","2:3","16:9 HD","16:9 QHD","16:9 4K"];
 
-export function EditOptionsPanel({ onClose }: { onClose: () => void }) {
-  const [model, setModel] = useState("GPT Image 2");
-  const [size, setSize] = useState("1:1");
-  const [quality, setQuality] = useState("Low");
-  const [count, setCount] = useState(2);
+export type EditOptions = { model: string; size: string; quality: string; count: number };
+
+export function EditOptionsPanel({
+  onClose,
+  model,
+  size,
+  quality,
+  count,
+  onModelChange,
+  onSizeChange,
+  onQualityChange,
+  onCountChange,
+}: {
+  onClose: () => void;
+  model: string;
+  size: string;
+  quality: string;
+  count: number;
+  onModelChange: (m: string) => void;
+  onSizeChange: (s: string) => void;
+  onQualityChange: (q: string) => void;
+  onCountChange: (n: number) => void;
+}) {
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white shadow-lg">
       <PanelHeader onClose={onClose}
@@ -336,14 +354,14 @@ export function EditOptionsPanel({ onClose }: { onClose: () => void }) {
           <div>
             <SectionLabel>Model</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
-              {EDIT_MODELS.map((m) => <ModelPill key={m} label={m} selected={model===m} onClick={() => setModel(m)} />)}
+              {EDIT_MODELS.map((m) => <ModelPill key={m} label={m} selected={model===m} onClick={() => onModelChange(m)} />)}
             </div>
           </div>
           <div>
             <SectionLabel>Quality</SectionLabel>
             <div className="flex gap-2">
               {["Low","Medium","High"].map((q) => (
-                <button key={q} onClick={() => setQuality(q)} className={`rounded-full border px-4 py-1.5 text-xs font-medium transition-all ${quality===q?"border-zinc-900 bg-zinc-900 text-white":"border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"}`}>{q}</button>
+                <button key={q} onClick={() => onQualityChange(q)} className={`rounded-full border px-4 py-1.5 text-xs font-medium transition-all ${quality===q?"border-zinc-900 bg-zinc-900 text-white":"border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"}`}>{q}</button>
               ))}
             </div>
           </div>
@@ -353,7 +371,7 @@ export function EditOptionsPanel({ onClose }: { onClose: () => void }) {
             <SectionLabel>Image Size</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
               {EDIT_SIZES.map((s) => (
-                <button key={s} onClick={() => setSize(s)} className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${size===s?"border-zinc-900 bg-zinc-900 text-white":"border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"}`}>{s}</button>
+                <button key={s} onClick={() => onSizeChange(s)} className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${size===s?"border-zinc-900 bg-zinc-900 text-white":"border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"}`}>{s}</button>
               ))}
             </div>
           </div>
@@ -361,7 +379,7 @@ export function EditOptionsPanel({ onClose }: { onClose: () => void }) {
             <SectionLabel>Images</SectionLabel>
             <div className="flex gap-2">
               {[1,2,3,4].map((n) => (
-                <button key={n} onClick={() => setCount(n)} className={`h-8 w-8 rounded-full border text-sm font-medium transition-all ${count===n?"border-zinc-900 bg-zinc-900 text-white":"border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"}`}>{n}</button>
+                <button key={n} onClick={() => onCountChange(n)} className={`h-8 w-8 rounded-full border text-sm font-medium transition-all ${count===n?"border-zinc-900 bg-zinc-900 text-white":"border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"}`}>{n}</button>
               ))}
             </div>
           </div>
