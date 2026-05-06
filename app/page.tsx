@@ -706,6 +706,19 @@ function NavItem({
   );
 }
 
+function renderUpgradePrompt() {
+  return (
+    <div className="rounded-full bg-red-100 px-4 py-1.5 text-xs font-medium text-red-600 shadow-sm border border-red-200 flex items-center gap-2">
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+      </span>
+      Free limit reached. You have used all 2 free messages. Upgrade to view
+      plans.
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -3274,19 +3287,9 @@ export default function Home() {
 
             {/* Fixed input bar at bottom */}
             <div className="border-t border-zinc-100 px-6 py-4">
-              <div className="mx-auto w-full max-w-2xl relative">
+              <div className="mx-auto w-full max-w-2xl">
                 {freeTierBlocked && (
-                  <div className="absolute -top-12 left-0 right-0 flex justify-center">
-                    <div className="rounded-full bg-red-100 px-4 py-1.5 text-xs font-medium text-red-600 shadow-sm border border-red-200 flex items-center gap-2">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                      Free limit reached. You have used all{" "}
-                      {FREE_TIER_MESSAGE_LIMIT} free messages. Upgrade to view
-                      plans.
-                    </div>
-                  </div>
+                  <div className="mb-4">{renderUpgradePrompt()}</div>
                 )}
                 <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 py-3 shadow-sm focus-within:border-zinc-400 focus-within:shadow-md transition-all">
                   <div ref={plusMenuRef} className="relative shrink-0">
