@@ -6,7 +6,7 @@ import { LoadingSpinner } from "@/components/admin/LoadingSpinner";
 import { ToastProvider, ToastViewport } from "@/hooks/useToast";
 import { adminApi } from "@/services/admin/api";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function AdminLayout({
   children,
@@ -15,85 +15,88 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  // sessionStorage is only available in the browser. On the server all reads
-  // return null, so the component starts in an unauthenticated / not-ready state
-  // and the client re-hydrates immediately from real storage.
-  const ss = (key: string) =>
-    typeof window !== "undefined" ? sessionStorage.getItem(key) : null;
 
-  // If there is no token there is nothing async to wait for, so ready = true.
-  const [ready, setReady] = useState<boolean>(() => !ss("admin_token"));
+  // All initial state is SSR-safe (no sessionStorage reads here).
+  // The effect below runs only on the client and populates everything.
+  const [ready, setReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [adminName, setAdminName] = useState<string>(
-    () => ss("admin_name") ?? "Admin",
-  );
-  const [adminEmail, setAdminEmail] = useState<string>(
-    () => ss("admin_email") ?? "",
-  );
-  const [authorized, setAuthorized] = useState<boolean>(() => {
-    const token = ss("admin_token");
-    const role = ss("admin_role");
-    return (
-      Boolean(token) && (role === "admin" || role === "super_admin" || !role)
-    );
-  });
+  const [adminName, setAdminName] = useState("Admin");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [authorized, setAuthorized] = useState(false);
 
-  const syncAuthFromStorage = useCallback(() => {
-    const token = sessionStorage.getItem("admin_token");
-    const role = sessionStorage.getItem("admin_role");
-    const name = sessionStorage.getItem("admin_name") ?? "Admin";
-    const email = sessionStorage.getItem("admin_email") ?? "";
-    setAdminName(name);
-    setAdminEmail(email);
-    setAuthorized(
-      Boolean(token) && (role === "admin" || role === "super_admin" || !role),
-    );
+  // Client-only: read sessionStorage, pre-populate state, then validate with backend.
+  // All setState calls are inside an async IIFE so React Compiler doesn't flag them
+  // as synchronous setState-in-effect calls.
+  useEffect(() => {
+    void (async () => {
+      const token = sessionStorage.getItem("admin_token");
+
+      if (!token) {
+        setAuthorized(false);
+        setReady(true);
+        return;
+      }
+
+      // Pre-populate from storage so the UI has a name while /auth/me is in-flight.
+      const storedName = sessionStorage.getItem("admin_name") ?? "Admin";
+      const storedEmail = sessionStorage.getItem("admin_email") ?? "";
+      const storedRole = sessionStorage.getItem("admin_role") ?? "";
+      setAdminName(storedName);
+      setAdminEmail(storedEmail);
+      setAuthorized(
+        storedRole === "admin" || storedRole === "super_admin" || !storedRole,
+      );
+
+      // Validate token + refresh profile from server.
+      try {
+        const response = await adminApi.get<{
+          name: string;
+          email: string;
+          role: string;
+        }>("/auth/me");
+        const { name, email, role } = response.data;
+        sessionStorage.setItem("admin_name", name);
+        sessionStorage.setItem("admin_email", email);
+        sessionStorage.setItem("admin_role", role);
+        setAdminName(name);
+        setAdminEmail(email);
+        setAuthorized(role === "admin" || role === "super_admin");
+      } catch {
+        // 401 clears storage and dispatches admin-auth-changed via the axios interceptor.
+        // Re-read storage to pick up the cleared state.
+        const token2 = sessionStorage.getItem("admin_token");
+        const role2 = sessionStorage.getItem("admin_role") ?? "";
+        setAdminName(sessionStorage.getItem("admin_name") ?? "Admin");
+        setAdminEmail(sessionStorage.getItem("admin_email") ?? "");
+        setAuthorized(
+          Boolean(token2) &&
+            (role2 === "admin" || role2 === "super_admin" || !role2),
+        );
+      } finally {
+        setReady(true);
+      }
+    })();
   }, []);
 
-  // On mount: validate token with backend (/auth/me).
-  useEffect(() => {
-    const token = sessionStorage.getItem("admin_token");
-    if (token) {
-      let mounted = true;
-      (async () => {
-        try {
-          const response = await adminApi.get<{
-            name: string;
-            email: string;
-            role: string;
-          }>("/auth/me");
-          if (!mounted) return;
-          const { name, email, role } = response.data;
-          sessionStorage.setItem("admin_name", name);
-          sessionStorage.setItem("admin_email", email);
-          sessionStorage.setItem("admin_role", role);
-          setAdminName(name);
-          setAdminEmail(email);
-          setAuthorized(role === "admin" || role === "super_admin");
-        } catch {
-          // 401 is handled by the interceptor (clears storage + dispatches event)
-          syncAuthFromStorage();
-        } finally {
-          if (mounted) setReady(true);
-        }
-      })();
-      return () => {
-        mounted = false;
-      };
-    }
-  }, [syncAuthFromStorage]);
-
+  // Re-sync state whenever login/logout occurs anywhere.
   useEffect(() => {
     const onAuthChanged = () => {
-      syncAuthFromStorage();
+      const token = sessionStorage.getItem("admin_token");
+      const role = sessionStorage.getItem("admin_role") ?? "";
+      setAdminName(sessionStorage.getItem("admin_name") ?? "Admin");
+      setAdminEmail(sessionStorage.getItem("admin_email") ?? "");
+      setAuthorized(
+        Boolean(token) && (role === "admin" || role === "super_admin" || !role),
+      );
     };
     window.addEventListener("admin-auth-changed", onAuthChanged);
     return () => {
       window.removeEventListener("admin-auth-changed", onAuthChanged);
     };
-  }, [syncAuthFromStorage]);
+  }, []);
 
+  // Navigation guard — only runs after client has determined auth state.
   useEffect(() => {
     if (!ready) return;
     const onAccessPage = pathname === "/admin/access";

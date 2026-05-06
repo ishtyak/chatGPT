@@ -41,9 +41,21 @@ export default function PromptsPage() {
       render: (prompt: PromptTemplate) => (
         <div>
           <p className="font-medium text-zinc-900 dark:text-zinc-100">
-            {prompt.title}
+            {prompt.name}
           </p>
           <p className="text-xs text-zinc-500">{prompt.tags.join(", ")}</p>
+        </div>
+      ),
+    },
+    {
+      key: "description",
+      header: "Description",
+      render: (prompt: PromptTemplate) => (
+        <div>
+          <p className="font-medium text-zinc-900 dark:text-zinc-100">
+            {prompt.description}
+          </p>
+          <p className="text-xs text-zinc-500">{prompt.content}</p>
         </div>
       ),
     },
@@ -51,16 +63,6 @@ export default function PromptsPage() {
       key: "category",
       header: "Category",
       render: (prompt: PromptTemplate) => prompt.category,
-    },
-    {
-      key: "author",
-      header: "Author",
-      render: (prompt: PromptTemplate) => prompt.author,
-    },
-    {
-      key: "usage",
-      header: "Usage",
-      render: (prompt: PromptTemplate) => prompt.usageCount?.toLocaleString(),
     },
     {
       key: "status",
@@ -78,11 +80,12 @@ export default function PromptsPage() {
         await update(form.id, form);
       } else {
         await create({
-          title: form.title,
-          slug: form.title.toLowerCase().replaceAll(" ", "-"),
+          name: form.name,
+          slug: form.name.toLowerCase().replaceAll(" ", "-"),
           category: form.category,
           author: form.author,
-          body: form.body,
+          description: form.description,
+          content: form.content,
           tags: form.tags,
           isFeatured: form.isFeatured,
           isPublished: form.isPublished,
@@ -108,11 +111,12 @@ export default function PromptsPage() {
             onClick={() => {
               setForm({
                 id: "",
-                title: "",
+                name: "",
                 slug: "",
                 category: categories[1] ?? "General",
                 author: "Softkey AI",
-                body: "",
+                description: "",
+                content: "",
                 tags: [],
                 usageCount: 0,
                 isFeatured: false,
@@ -189,7 +193,11 @@ export default function PromptsPage() {
         onToggleSelect={(id) =>
           setSelectedIds((current) => {
             const next = new Set(current);
-            next.has(id) ? next.delete(id) : next.add(id);
+            if (next.has(id)) {
+              next.delete(id);
+            } else {
+              next.add(id);
+            }
             return next;
           })
         }
@@ -282,9 +290,9 @@ export default function PromptsPage() {
             <label className="block text-sm">
               <span className="mb-1 block text-zinc-500">Title</span>
               <input
-                value={form.title}
+                value={form.name}
                 onChange={(event) =>
-                  setForm({ ...form, title: event.target.value })
+                  setForm({ ...form, name: event.target.value })
                 }
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
               />
@@ -292,9 +300,9 @@ export default function PromptsPage() {
             <label className="block text-sm">
               <span className="mb-1 block text-zinc-500">Body</span>
               <textarea
-                value={form.body}
+                value={form.description}
                 onChange={(event) =>
-                  setForm({ ...form, body: event.target.value })
+                  setForm({ ...form, description: event.target.value })
                 }
                 className="min-h-40 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
               />

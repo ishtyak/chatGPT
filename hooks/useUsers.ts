@@ -33,16 +33,24 @@ export function useUsers(initialPage = 1, pageSize = 50) {
     to: "",
   });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
-      const result = await getUsers(page, pageSize, filters);
-      if (!mounted) return;
-      setRows(result.items);
-      setTotal(result.total);
-      setLoading(false);
+      setError(null);
+      try {
+        const result = await getUsers(page, pageSize, filters);
+        if (!mounted) return;
+        setRows(result.items);
+        setTotal(result.total);
+      } catch (err) {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Failed to load users");
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
     return () => {
       mounted = false;
@@ -116,6 +124,7 @@ export function useUsers(initialPage = 1, pageSize = 50) {
     page,
     setPage,
     loading,
+    error,
     rows,
     total,
     totalPages,

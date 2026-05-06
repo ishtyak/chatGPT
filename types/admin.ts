@@ -130,11 +130,12 @@ export interface AIProvider {
 
 export interface PromptTemplate {
   id: string;
-  title: string;
+  name: string;
   slug: string;
   category: string;
   author: string;
-  body: string;
+  description: string;
+  content: string;
   tags: string[];
   usageCount: number;
   isFeatured: boolean;

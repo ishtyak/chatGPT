@@ -21,11 +21,12 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 export function StatusBadge({ status, className = "" }: Props) {
+  const normalized = status ?? "";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${STATUS_MAP[status] ?? "bg-zinc-500/15 text-zinc-400 ring-1 ring-zinc-500/20"} ${className}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${STATUS_MAP[normalized] ?? "bg-zinc-500/15 text-zinc-400 ring-1 ring-zinc-500/20"} ${className}`}
     >
-      {status.replaceAll("_", " ")}
+      {normalized.replaceAll("_", " ")}
     </span>
   );
 }

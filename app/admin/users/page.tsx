@@ -27,6 +27,7 @@ export default function UsersPage() {
     page,
     setPage,
     loading,
+    error,
     rows,
     totalPages,
     filters,
@@ -48,16 +49,21 @@ export default function UsersPage() {
       {
         key: "avatar",
         header: "Avatar",
-        render: (user: User) => (
-          <Image
-            src={user.avatarUrl}
-            alt={user.name}
-            width={36}
-            height={36}
-            unoptimized
-            className="h-9 w-9 rounded-full border border-zinc-200 dark:border-zinc-800"
-          />
-        ),
+        render: (user: User) =>
+          user.avatarUrl ? (
+            <Image
+              src={user.avatarUrl}
+              alt={user.name}
+              width={36}
+              height={36}
+              unoptimized
+              className="h-9 w-9 rounded-full border border-zinc-200 dark:border-zinc-800"
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
+              {(user.name ?? "?").slice(0, 2).toUpperCase()}
+            </div>
+          ),
       },
       {
         key: "name",
@@ -101,7 +107,7 @@ export default function UsersPage() {
         ),
       },
     ],
-    [],
+    [planLookup],
   );
 
   const selectedList = Array.from(selectedIds);
@@ -113,6 +119,12 @@ export default function UsersPage() {
         description="Search, inspect, and manage users with bulk controls and account actions."
         breadcrumbs={[{ label: "Admin" }, { label: "Users" }]}
       />
+
+      {error && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
 
       <FilterBar
         searchValue={filters.search}
