@@ -7,20 +7,23 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { usePrompts } from "@/hooks/usePrompts";
 import { useToast } from "@/hooks/useToast";
-import { adminMockState } from "@/lib/admin/mockData";
 import type { PromptTemplate } from "@/types/admin";
 import { useMemo, useState } from "react";
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-
 export default function PromptsPage() {
   const { pushToast } = useToast();
-  const [prompts, setPrompts] = useState<PromptTemplate[]>(
-    clone(adminMockState.prompts),
-  );
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
+  const {
+    rows: prompts,
+    search,
+    setSearch,
+    category,
+    setCategory,
+    create,
+    update,
+    remove,
+  } = usePrompts();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -29,21 +32,6 @@ export default function PromptsPage() {
   const categories = useMemo(
     () => ["all", ...new Set(prompts.map((prompt) => prompt.category))],
     [prompts],
-  );
-  const filtered = useMemo(
-    () =>
-      prompts.filter((prompt) => {
-        const matchesSearch =
-          !search ||
-          [prompt.title, prompt.author, prompt.body, prompt.tags.join(" ")]
-            .join(" ")
-            .toLowerCase()
-            .includes(search.toLowerCase());
-        const matchesCategory =
-          category === "all" || prompt.category === category;
-        return matchesSearch && matchesCategory;
-      }),
-    [category, prompts, search],
   );
 
   const columns = [
@@ -72,7 +60,7 @@ export default function PromptsPage() {
     {
       key: "usage",
       header: "Usage",
-      render: (prompt: PromptTemplate) => prompt.usageCount.toLocaleString(),
+      render: (prompt: PromptTemplate) => prompt.usageCount?.toLocaleString(),
     },
     {
       key: "status",
@@ -83,23 +71,30 @@ export default function PromptsPage() {
     },
   ];
 
-  const savePrompt = () => {
+  const savePrompt = async () => {
     if (!form) return;
-    setPrompts((current) => {
-      const next = current.filter((item) => item.id !== form.id);
-      const updated: PromptTemplate = {
-        ...form,
-        id: form.id ?? `prompt_${Date.now()}`,
-        slug: form.title.toLowerCase().replaceAll(" ", "-"),
-        updatedAt: new Date().toISOString(),
-      };
-      const final = [...next, updated];
-      adminMockState.prompts = clone(final);
-      return final;
-    });
-    setDrawerOpen(false);
-    setForm(null);
-    pushToast({ title: "Prompt saved", variant: "success" });
+    try {
+      if (form.id) {
+        await update(form.id, form);
+      } else {
+        await create({
+          title: form.title,
+          slug: form.title.toLowerCase().replaceAll(" ", "-"),
+          category: form.category,
+          author: form.author,
+          body: form.body,
+          tags: form.tags,
+          isFeatured: form.isFeatured,
+          isPublished: form.isPublished,
+          status: form.status,
+        });
+      }
+      setDrawerOpen(false);
+      setForm(null);
+      pushToast({ title: "Prompt saved", variant: "success" });
+    } catch {
+      pushToast({ title: "Save failed", variant: "error" });
+    }
   };
 
   return (
@@ -138,7 +133,7 @@ export default function PromptsPage() {
       <FilterBar
         searchValue={search}
         onSearchChange={setSearch}
-        placeholder="Search title, body, author or tags…"
+        placeholder="Search title, body, author or tags..."
         filters={[
           {
             key: "category",
@@ -155,12 +150,10 @@ export default function PromptsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                setPrompts((current) =>
-                  current.map((prompt) =>
-                    selectedIds.has(prompt.id)
-                      ? { ...prompt, isPublished: true, status: "published" }
-                      : prompt,
+              onClick={async () => {
+                await Promise.all(
+                  [...selectedIds].map((id) =>
+                    update(id, { isPublished: true, status: "published" }),
                   ),
                 );
                 pushToast({ title: "Prompts published", variant: "success" });
@@ -171,12 +164,10 @@ export default function PromptsPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setPrompts((current) =>
-                  current.map((prompt) =>
-                    selectedIds.has(prompt.id)
-                      ? { ...prompt, isPublished: false, status: "draft" }
-                      : prompt,
+              onClick={async () => {
+                await Promise.all(
+                  [...selectedIds].map((id) =>
+                    update(id, { isPublished: false, status: "draft" }),
                   ),
                 );
                 pushToast({ title: "Prompts unpublished", variant: "warning" });
@@ -191,7 +182,7 @@ export default function PromptsPage() {
 
       <DataTable<PromptTemplate>
         columns={columns}
-        rows={filtered}
+        rows={prompts}
         rowId={(prompt) => prompt.id}
         selectable
         selectedIds={selectedIds}
@@ -204,7 +195,7 @@ export default function PromptsPage() {
         }
         onToggleSelectAll={(checked) =>
           setSelectedIds(
-            checked ? new Set(filtered.map((prompt) => prompt.id)) : new Set(),
+            checked ? new Set(prompts.map((prompt) => prompt.id)) : new Set(),
           )
         }
         actions={(prompt) => (
@@ -221,18 +212,11 @@ export default function PromptsPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setPrompts((current) =>
-                  current.map((item) =>
-                    item.id === prompt.id
-                      ? {
-                          ...item,
-                          isPublished: !item.isPublished,
-                          status: item.isPublished ? "draft" : "published",
-                        }
-                      : item,
-                  ),
-                );
+              onClick={async () => {
+                await update(prompt.id, {
+                  isPublished: !prompt.isPublished,
+                  status: prompt.isPublished ? "draft" : "published",
+                });
               }}
               className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium dark:border-zinc-800"
             >
@@ -249,7 +233,22 @@ export default function PromptsPage() {
         )}
         emptyState={
           <EmptyState
-            icon={<span>✎</span>}
+            icon={
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-6 w-6"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z"
+                />
+              </svg>
+            }
             title="No prompts found"
             description="Adjust the search or category filter to reveal prompt templates."
           />
@@ -380,18 +379,13 @@ export default function PromptsPage() {
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         title="Delete prompt?"
-        description="This permanently removes the prompt from the admin mock store."
+        description="This permanently removes the prompt."
         danger
         confirmLabel="Delete"
         onClose={() => setConfirmDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!confirmDelete) return;
-          setPrompts((current) =>
-            current.filter((item) => item.id !== confirmDelete),
-          );
-          adminMockState.prompts = adminMockState.prompts.filter(
-            (item) => item.id !== confirmDelete,
-          );
+          await remove(confirmDelete);
           setConfirmDelete(null);
           pushToast({ title: "Prompt deleted", variant: "success" });
         }}

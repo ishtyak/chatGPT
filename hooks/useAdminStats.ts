@@ -13,14 +13,17 @@ export function useAdminStats() {
     let mounted = true;
     (async () => {
       setLoading(true);
-      const [nextStats, nextCharts] = await Promise.all([
-        getStats(),
-        getChartData(),
-      ]);
-      if (!mounted) return;
-      setStats(nextStats);
-      setCharts(nextCharts);
-      setLoading(false);
+      try {
+        const [nextStats, nextCharts] = await Promise.all([
+          getStats(),
+          getChartData(),
+        ]);
+        if (!mounted) return;
+        setStats(nextStats);
+        setCharts(nextCharts);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
     return () => {
       mounted = false;

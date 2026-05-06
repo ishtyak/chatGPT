@@ -2365,7 +2365,7 @@ export default function Home() {
     <div className="flex h-screen w-full overflow-hidden bg-white">
       {/* ── Share toast ── */}
       {shareToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2 rounded-xl bg-zinc-800 px-4 py-2.5 text-sm text-white shadow-xl border border-zinc-700 pointer-events-none">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-200 flex items-center gap-2 rounded-xl bg-zinc-800 px-4 py-2.5 text-sm text-white shadow-xl border border-zinc-700 pointer-events-none">
           <svg
             width="14"
             height="14"
@@ -2603,7 +2603,7 @@ export default function Home() {
         <div className="border-t border-zinc-200 px-4 py-4">
           {isLoggedIn ? (
             <div className="flex items-center gap-3">
-              <div className="relative flex-shrink-0">
+              <div className="relative shrink-0">
                 {userImage ? (
                   <Image
                     src={userImage}
@@ -2614,7 +2614,7 @@ export default function Home() {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white text-sm font-semibold">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br from-amber-400 to-orange-500 text-white text-sm font-semibold">
                     {userInitial}
                   </div>
                 )}
@@ -2637,7 +2637,7 @@ export default function Home() {
               onClick={() => setAuthModal("signup")}
               className="flex w-full items-center gap-3 rounded-lg px-1 py-1 hover:bg-zinc-100 transition-colors group"
             >
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 group-hover:bg-zinc-200">
                 <svg
                   width="16"
                   height="16"
@@ -2702,7 +2702,7 @@ export default function Home() {
           {/* Upgrade button */}
           <button
             onClick={() => router.push("/pricing")}
-            className="ml-auto flex items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-violet-600 hover:to-indigo-600 active:scale-95 transition-all duration-150"
+            className="ml-auto flex items-center gap-1.5 rounded-full bg-linear-to-r from-violet-500 to-indigo-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-violet-600 hover:to-indigo-600 active:scale-95 transition-all duration-150"
             title="Upgrade plan"
           >
             {/* Zap / lightning bolt */}
@@ -2976,7 +2976,7 @@ export default function Home() {
                     onClick={startDictation}
                     title={isRecording ? "Stop recording" : "Dictate"}
                     disabled={chatAccessBlocked}
-                    className={`flex-shrink-0 transition-colors ${
+                    className={`shrink-0 transition-colors ${
                       chatAccessBlocked
                         ? "text-zinc-200 cursor-not-allowed"
                         : isRecording
@@ -2989,7 +2989,7 @@ export default function Home() {
                   <button
                     onClick={handleSend}
                     disabled={chatAccessBlocked || !inputValue.trim()}
-                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
                     }`}
                   >
@@ -3415,7 +3415,7 @@ export default function Home() {
                     onClick={startDictation}
                     title={isRecording ? "Stop recording" : "Dictate"}
                     disabled={chatAccessBlocked}
-                    className={`flex-shrink-0 transition-colors ${
+                    className={`shrink-0 transition-colors ${
                       chatAccessBlocked
                         ? "text-zinc-200 cursor-not-allowed"
                         : isRecording
@@ -3428,7 +3428,7 @@ export default function Home() {
                   <button
                     onClick={handleSend}
                     disabled={chatAccessBlocked || !inputValue.trim()}
-                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
                       chatAccessBlocked || !inputValue.trim()
                         ? "opacity-40 cursor-not-allowed hover:bg-zinc-900"
                         : isRecording

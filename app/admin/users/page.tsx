@@ -7,21 +7,22 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { useToast } from "@/hooks/useToast";
 import { useUsers } from "@/hooks/useUsers";
-import { adminMockState } from "@/lib/admin/mockData";
 import type { User } from "@/types/admin";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-const planLookup = Object.fromEntries(
-  adminMockState.plans.map((plan) => [plan.id, plan.name]),
-);
-
 export default function UsersPage() {
   const router = useRouter();
   const { pushToast } = useToast();
+  const { plans } = useSubscriptions();
+  const planLookup = useMemo(
+    () => Object.fromEntries(plans.map((plan) => [plan.id, plan.name])),
+    [plans],
+  );
   const {
     page,
     setPage,
@@ -90,7 +91,7 @@ export default function UsersPage() {
       {
         key: "usage",
         header: "AI Usage",
-        render: (user: User) => <span>{user.aiUsage.toLocaleString()}</span>,
+        render: (user: User) => <span>{user.aiUsage?.toLocaleString()}</span>,
       },
       {
         key: "joined",
@@ -144,7 +145,7 @@ export default function UsersPage() {
               setFilters((current) => ({ ...current, planId })),
             options: [
               { label: "All", value: "all" },
-              ...adminMockState.plans.map((plan) => ({
+              ...plans.map((plan) => ({
                 label: plan.name,
                 value: plan.id,
               })),
@@ -335,7 +336,7 @@ export default function UsersPage() {
                 }
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
               >
-                {adminMockState.plans.map((plan) => (
+                {plans.map((plan) => (
                   <option key={plan.id} value={plan.id}>
                     {plan.name}
                   </option>
@@ -366,7 +367,7 @@ export default function UsersPage() {
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="Delete user?"
-        description="This action permanently removes the account, subscriptions, and sessions from the admin mock store."
+        description="This action permanently removes the user account."
         danger
         confirmLabel="Delete user"
         onClose={() => setDeleteTarget(null)}

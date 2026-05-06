@@ -6,17 +6,21 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { useToast } from "@/hooks/useToast";
-import { adminMockState } from "@/lib/admin/mockData";
+import { useTools } from "@/hooks/useTools";
 import type { Tool } from "@/types/admin";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-
 export default function ToolsPage() {
   const { pushToast } = useToast();
-  const [tools, setTools] = useState<Tool[]>(clone(adminMockState.tools));
-  const [category, setCategory] = useState("all");
+  const {
+    rows: tools,
+    category,
+    setCategory,
+    create,
+    update,
+    remove,
+  } = useTools();
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -26,29 +30,31 @@ export default function ToolsPage() {
     () => ["all", ...new Set(tools.map((tool) => tool.category))],
     [tools],
   );
-  const filtered = useMemo(
-    () =>
-      tools.filter((tool) => category === "all" || tool.category === category),
-    [category, tools],
-  );
 
-  const saveTool = () => {
+  const saveTool = async () => {
     if (!form) return;
-    const next: Tool = {
-      ...form,
-      id: form.id || `tool_${Date.now()}`,
-      slug: form.name.toLowerCase().replaceAll(" ", "-"),
-      updatedAt: new Date().toISOString(),
-    };
-    setTools((current) => {
-      const items = current.filter((item) => item.id !== next.id);
-      const final = [...items, next];
-      adminMockState.tools = clone(final);
-      return final;
-    });
-    setDrawerOpen(false);
-    setForm(null);
-    pushToast({ title: "Tool saved", variant: "success" });
+    try {
+      if (form.id) {
+        await update(form.id, form);
+      } else {
+        await create({
+          name: form.name,
+          slug: form.name.toLowerCase().replaceAll(" ", "-"),
+          category: form.category,
+          description: form.description,
+          url: form.url,
+          logoUrl: form.logoUrl,
+          tags: form.tags,
+          isFeatured: form.isFeatured,
+          status: form.status,
+        });
+      }
+      setDrawerOpen(false);
+      setForm(null);
+      pushToast({ title: "Tool saved", variant: "success" });
+    } catch {
+      pushToast({ title: "Save failed", variant: "error" });
+    }
   };
 
   return (
@@ -124,21 +130,27 @@ export default function ToolsPage() {
         <div>
           {viewMode === "card" ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((tool) => (
+              {tools.map((tool) => (
                 <div
                   key={tool.id}
                   className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <Image
-                        src={tool.logoUrl}
-                        alt={tool.name}
-                        width={44}
-                        height={44}
-                        unoptimized
-                        className="h-11 w-11 rounded-2xl border border-zinc-200 dark:border-zinc-800"
-                      />
+                      {tool.logoUrl ? (
+                        <Image
+                          src={tool.logoUrl}
+                          alt={tool.name}
+                          width={44}
+                          height={44}
+                          unoptimized
+                          className="h-11 w-11 rounded-2xl border border-zinc-200 object-cover dark:border-zinc-800"
+                        />
+                      ) : (
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-100 text-xs font-bold text-zinc-400 dark:border-zinc-800 dark:bg-zinc-800">
+                          {tool.name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
                       <div>
                         <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
                           {tool.name}
@@ -162,7 +174,7 @@ export default function ToolsPage() {
                     ))}
                   </div>
                   <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
-                    <span>{tool.clickCount.toLocaleString()} clicks</span>
+                    <span>{tool.clickCount?.toLocaleString()} clicks</span>
                     <span>{tool.isFeatured ? "Featured" : "Standard"}</span>
                   </div>
                   <div className="mt-4 flex gap-2">
@@ -187,20 +199,26 @@ export default function ToolsPage() {
             </div>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
-              {filtered.map((tool) => (
+              {tools.map((tool) => (
                 <div
                   key={tool.id}
                   className="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 last:border-b-0 dark:border-zinc-800"
                 >
                   <div className="flex items-center gap-4">
-                    <Image
-                      src={tool.logoUrl}
-                      alt={tool.name}
-                      width={40}
-                      height={40}
-                      unoptimized
-                      className="h-10 w-10 rounded-2xl border border-zinc-200 dark:border-zinc-800"
-                    />
+                    {tool.logoUrl ? (
+                      <Image
+                        src={tool.logoUrl}
+                        alt={tool.name}
+                        width={40}
+                        height={40}
+                        unoptimized
+                        className="h-10 w-10 rounded-2xl border border-zinc-200 object-cover dark:border-zinc-800"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-100 text-xs font-bold text-zinc-400 dark:border-zinc-800 dark:bg-zinc-800">
+                        {tool.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <p className="font-medium text-zinc-900 dark:text-zinc-100">
                         {tool.name}
@@ -227,10 +245,25 @@ export default function ToolsPage() {
             </div>
           )}
 
-          {filtered.length === 0 && (
+          {tools.length === 0 && (
             <div className="mt-6">
               <EmptyState
-                icon={<span>⌕</span>}
+                icon={
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="h-6 w-6"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z"
+                    />
+                  </svg>
+                }
                 title="No tools match"
                 description="Try another category or add a new directory entry."
                 ctaLabel="Add tool"
@@ -365,18 +398,13 @@ export default function ToolsPage() {
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         title="Delete tool?"
-        description="This will remove the tool from the directory mock store."
+        description="This will permanently remove the tool from the directory."
         danger
         confirmLabel="Delete"
         onClose={() => setConfirmDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!confirmDelete) return;
-          setTools((current) =>
-            current.filter((tool) => tool.id !== confirmDelete),
-          );
-          adminMockState.tools = adminMockState.tools.filter(
-            (tool) => tool.id !== confirmDelete,
-          );
+          await remove(confirmDelete);
           setConfirmDelete(null);
           pushToast({ title: "Tool deleted", variant: "success" });
         }}

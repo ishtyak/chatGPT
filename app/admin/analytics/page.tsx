@@ -4,7 +4,6 @@ import { ChartCard } from "@/components/admin/ChartCard";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useAdminStats } from "@/hooks/useAdminStats";
 import { useToast } from "@/hooks/useToast";
-import { adminMockState } from "@/lib/admin/mockData";
 import { exportChartCsv } from "@/services/admin/analytics.service";
 import { useMemo, useState } from "react";
 import {
@@ -36,7 +35,13 @@ export default function AnalyticsPage() {
   const { charts } = useAdminStats();
   const [range, setRange] = useState("30d");
   const chartData = useMemo(
-    () => ({ ...adminMockState.chartData, ...(charts ?? {}) }),
+    () => ({
+      registrations: charts?.registrations ?? [],
+      aiUsage: charts?.aiUsage ?? [],
+      conversions: charts?.conversions ?? [],
+      templateUsage: charts?.templateUsage ?? [],
+      providerDistribution: charts?.providerDistribution ?? [],
+    }),
     [charts],
   );
 

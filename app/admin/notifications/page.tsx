@@ -4,40 +4,39 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { DrawerForm } from "@/components/admin/DrawerForm";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useToast } from "@/hooks/useToast";
-import { adminMockState } from "@/lib/admin/mockData";
 import type { Notification } from "@/types/admin";
 import { useState } from "react";
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-
 export default function NotificationsPage() {
   const { pushToast } = useToast();
-  const [items, setItems] = useState<Notification[]>(
-    clone(adminMockState.notifications),
-  );
+  const { rows: items, create, update, remove } = useNotifications();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState<Notification | null>(null);
 
-  const save = () => {
+  const save = async () => {
     if (!form) return;
-    const next: Notification = {
-      ...form,
-      id: form.id || `note_${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    setItems((current) => {
-      const itemsNext = [
-        ...current.filter((item) => item.id !== next.id),
-        next,
-      ];
-      adminMockState.notifications = clone(itemsNext);
-      return itemsNext;
-    });
-    setDrawerOpen(false);
-    setForm(null);
-    pushToast({ title: "Notification saved", variant: "success" });
+    try {
+      if (form.id) {
+        await update(form.id, form);
+      } else {
+        await create({
+          type: form.type,
+          title: form.title,
+          body: form.body,
+          audience: form.audience,
+          status: form.status,
+          scheduleAt: form.scheduleAt,
+        });
+      }
+      setDrawerOpen(false);
+      setForm(null);
+      pushToast({ title: "Notification saved", variant: "success" });
+    } catch {
+      pushToast({ title: "Save failed", variant: "error" });
+    }
   };
 
   return (
@@ -89,7 +88,7 @@ export default function NotificationsPage() {
                   {item.body}
                 </p>
                 <p className="mt-2 text-xs text-zinc-500">
-                  Audience: {item.audience} · Type: {item.type}
+                  Audience: {item.audience} Type: {item.type}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -209,8 +208,9 @@ export default function NotificationsPage() {
                 <span className="mb-1 block text-zinc-500">Schedule at</span>
                 <input
                   type="datetime-local"
+                  value={form.scheduleAt ?? ""}
                   onChange={(event) =>
-                    setForm({ ...form, scheduleAt: event.target.value })
+                    setForm({ ...form, scheduleAt: event.target.value || null })
                   }
                   className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
                 />
@@ -223,16 +223,13 @@ export default function NotificationsPage() {
       <ConfirmDialog
         open={Boolean(deleteId)}
         title="Delete notification?"
-        description="This removes the notice from the admin mock store."
+        description="This permanently removes the notice."
         danger
         confirmLabel="Delete"
         onClose={() => setDeleteId(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (!deleteId) return;
-          setItems((current) => current.filter((item) => item.id !== deleteId));
-          adminMockState.notifications = adminMockState.notifications.filter(
-            (item) => item.id !== deleteId,
-          );
+          await remove(deleteId);
           setDeleteId(null);
           pushToast({ title: "Notification deleted", variant: "success" });
         }}

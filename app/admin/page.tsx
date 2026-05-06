@@ -1,13 +1,14 @@
-"use client";
+﻿"use client";
 
 import { ChartCard } from "@/components/admin/ChartCard";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatCard } from "@/components/admin/StatCard";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { useAdminStats } from "@/hooks/useAdminStats";
+import { useAuditLogs } from "@/hooks/useAuditLogs";
+import { useProviders } from "@/hooks/useProviders";
+import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/useToast";
-import { adminMockState } from "@/lib/admin/mockData";
-import { updateSettings } from "@/services/admin/settings.service";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import {
@@ -20,7 +21,7 @@ import {
   YAxis,
 } from "recharts";
 
-const formatMoney = (value: number) => `$${value.toLocaleString()}`;
+const formatMoney = (value: number) => `$${value?.toLocaleString()}`;
 
 const usageWidthClass = (usage: number, limit: number) => {
   const percent = Math.min(100, Math.round((usage / limit) * 100));
@@ -34,12 +35,12 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const { pushToast } = useToast();
   const { stats, charts, loading } = useAdminStats();
+  const { rows: auditRows, loading: auditLoading } = useAuditLogs(10);
+  const { providers, loading: providersLoading } = useProviders();
+  const { appSettings, saveSettings } = useSettings();
 
-  const growth = useMemo(
-    () => charts.userGrowth ?? adminMockState.chartData.userGrowth,
-    [charts.userGrowth],
-  );
-  const recentActivity = adminMockState.auditLogs.slice(0, 10);
+  const growth = useMemo(() => charts.userGrowth ?? [], [charts.userGrowth]);
+  const recentActivity = auditLoading ? [] : auditRows.slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -53,42 +54,42 @@ export default function AdminDashboardPage() {
         <StatCard
           icon={<span>U</span>}
           label="Total Users"
-          value={loading ? "—" : (stats.totalUsers ?? 0)}
+          value={loading ? "" : (stats.totalUsers ?? 0)}
           trend="+12%"
           helper="vs last month"
         />
         <StatCard
           icon={<span>A</span>}
           label="Active Users"
-          value={loading ? "—" : (stats.activeUsers ?? 0)}
+          value={loading ? "" : (stats.activeUsers ?? 0)}
           trend="+8%"
           helper="24h"
         />
         <StatCard
           icon={<span>N</span>}
           label="New Today"
-          value={loading ? "—" : (stats.newToday ?? 0)}
+          value={loading ? "" : (stats.newToday ?? 0)}
           trend="+4%"
           helper="today"
         />
         <StatCard
           icon={<span>$</span>}
           label="Revenue MTD"
-          value={loading ? "—" : formatMoney(stats.revenueMonthToDate ?? 0)}
+          value={loading ? "" : formatMoney(stats.revenueMonthToDate ?? 0)}
           trend="+18%"
           helper="month"
         />
         <StatCard
           icon={<span>AI</span>}
           label="AI Calls Today"
-          value={loading ? "—" : (stats.aiCallsToday ?? 0)}
+          value={loading ? "" : (stats.aiCallsToday ?? 0)}
           trend="+21%"
           helper="usage"
         />
         <StatCard
           icon={<span>S</span>}
           label="Active Subs"
-          value={loading ? "—" : (stats.activeSubscriptions ?? 0)}
+          value={loading ? "" : (stats.activeSubscriptions ?? 0)}
           trend="+6%"
           helper="billing"
         />
@@ -144,9 +145,7 @@ export default function AdminDashboardPage() {
               Quick actions
             </h3>
             <StatusBadge
-              status={
-                adminMockState.appSettings.maintenanceMode ? "error" : "active"
-              }
+              status={appSettings?.maintenanceMode ? "error" : "active"}
             />
           </div>
           <div className="mt-4 grid gap-3">
@@ -174,8 +173,8 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={async () => {
-                const next = !adminMockState.appSettings.maintenanceMode;
-                await updateSettings({ maintenanceMode: next });
+                const next = !appSettings?.maintenanceMode;
+                await saveSettings({ maintenanceMode: next });
                 pushToast({
                   title: "Maintenance updated",
                   description: next
@@ -237,39 +236,42 @@ export default function AdminDashboardPage() {
             Provider health
           </h3>
           <div className="mt-4 space-y-3">
-            {adminMockState.providers.map((provider) => {
-              const percent = Math.min(
-                100,
-                Math.round(
-                  (provider.monthlyUsage / provider.monthlyLimit) * 100,
-                ),
-              );
-              return (
-                <div
-                  key={provider.id}
-                  className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-900"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      {provider.name}
-                    </p>
-                    <StatusBadge status={provider.status} />
-                  </div>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {provider.healthMessage}
-                  </p>
-                  <div className="mt-3 h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
+            {providersLoading
+              ? null
+              : providers.map((provider) => {
+                  const percent = Math.min(
+                    100,
+                    Math.round(
+                      (provider.monthlyUsage / provider.monthlyLimit) * 100,
+                    ),
+                  );
+                  return (
                     <div
-                      className={`h-2 rounded-full bg-indigo-600 ${usageWidthClass(provider.monthlyUsage, provider.monthlyLimit)}`}
-                    />
-                  </div>
-                  <p className="mt-2 text-[11px] text-zinc-500">
-                    {provider.monthlyUsage.toLocaleString()} /{" "}
-                    {provider.monthlyLimit.toLocaleString()} calls ({percent}%)
-                  </p>
-                </div>
-              );
-            })}
+                      key={provider.id}
+                      className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-900"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                          {provider.name}
+                        </p>
+                        <StatusBadge status={provider.status} />
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {provider.healthMessage}
+                      </p>
+                      <div className="mt-3 h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
+                        <div
+                          className={`h-2 rounded-full bg-indigo-600 ${usageWidthClass(provider.monthlyUsage, provider.monthlyLimit)}`}
+                        />
+                      </div>
+                      <p className="mt-2 text-[11px] text-zinc-500">
+                        {provider.monthlyUsage?.toLocaleString()} /{" "}
+                        {provider.monthlyLimit?.toLocaleString()} calls (
+                        {percent}%)
+                      </p>
+                    </div>
+                  );
+                })}
           </div>
         </div>
       </div>

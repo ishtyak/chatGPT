@@ -1,65 +1,49 @@
-import { adminMockState } from "@/lib/admin/mockData";
 import type { AIProvider } from "@/types/admin";
 import { adminApi } from "./api";
 
-const useRemote = process.env.NEXT_PUBLIC_ADMIN_API_MODE === "remote";
-const wait = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-
-export async function getProviders() {
-  if (useRemote) {
-    const response = await adminApi.get("/providers");
-    return response.data as AIProvider[];
-  }
-  await wait();
-  return clone(adminMockState.providers);
-}
-
-export async function updateProvider(id: string, patch: Partial<AIProvider>) {
-  if (useRemote) {
-    const response = await adminApi.patch(`/providers/${id}`, patch);
-    return response.data as AIProvider;
-  }
-  await wait();
-  const index = adminMockState.providers.findIndex(
-    (provider) => provider.id === id,
-  );
-  if (index === -1) throw new Error("Provider not found");
-  adminMockState.providers[index] = {
-    ...adminMockState.providers[index],
-    ...patch,
-  };
-  return clone(adminMockState.providers[index]);
-}
-
-export async function toggleProvider(id: string, enabled: boolean) {
-  return updateProvider(id, {
-    isEnabled: enabled,
-    status: enabled ? "active" : "disabled",
-  });
-}
-
-export async function reorderProviders(ids: string[]) {
-  await wait();
-  const reordered = ids
-    .map((id) =>
-      adminMockState.providers.find((provider) => provider.id === id),
-    )
-    .filter(Boolean) as AIProvider[];
-  adminMockState.providers = reordered.map((provider, index) => ({
-    ...provider,
-    priority: index + 1,
+export async function getProviders(): Promise<AIProvider[]> {
+  const response = await adminApi.get("/providers");
+  const data = response.data;
+  // Backend may return { apiKeyMasked } — remap to maskedApiKey used by our type
+  const items: AIProvider[] = (
+    Array.isArray(data) ? data : ((data as { data: AIProvider[] }).data ?? [])
+  ).map((item: AIProvider & { apiKeyMasked?: string }) => ({
+    ...item,
+    maskedApiKey: item.maskedApiKey ?? item.apiKeyMasked ?? "",
   }));
-  return clone(adminMockState.providers);
+  return items;
 }
 
-export async function testProviderKey(id: string) {
-  await wait(400);
-  const provider = adminMockState.providers.find((item) => item.id === id);
-  if (!provider) throw new Error("Provider not found");
+export async function updateProvider(
+  id: string,
+  patch: Partial<AIProvider> & { apiKey?: string },
+): Promise<AIProvider> {
+  const response = await adminApi.patch(`/providers/${id}`, patch);
+  const item = response.data as AIProvider & { apiKeyMasked?: string };
   return {
-    ok: provider.status !== "error",
-    message:
-      provider.status === "error" ? "Authentication failed" : "Key verified",
+    ...item,
+    maskedApiKey: item.maskedApiKey ?? item.apiKeyMasked ?? "",
   };
+}
+
+export async function toggleProvider(
+  id: string,
+  enabled: boolean,
+): Promise<AIProvider> {
+  return updateProvider(id, { isEnabled: enabled });
+}
+
+export async function reorderProviders(ids: string[]): Promise<AIProvider[]> {
+  const updates = ids.map((id, index) =>
+    adminApi.patch(`/providers/${id}`, { priority: index + 1 }),
+  );
+  await Promise.all(updates);
+  return getProviders();
+}
+
+export async function testProviderKey(
+  id: string,
+): Promise<{ ok: boolean; message: string }> {
+  const response = await adminApi.post(`/providers/${id}/test`);
+  return response.data as { ok: boolean; message: string };
 }

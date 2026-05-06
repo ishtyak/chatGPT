@@ -2,13 +2,8 @@
 
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/useToast";
-import { adminMockState } from "@/lib/admin/mockData";
-import {
-  getSettings,
-  updateFeatureFlags,
-  updateSettings,
-} from "@/services/admin/settings.service";
 import type { AppSettings, FeatureFlags } from "@/types/admin";
 import Image from "next/image";
 import { useEffect, useState } from "react";
@@ -32,41 +27,60 @@ const tabs: { key: TabKey; label: string }[] = [
 
 const rateLimitDefaults = { free: 2, pro: 20, business: 80 };
 
+const defaultSettings: AppSettings = {
+  appName: "",
+  appDescription: "",
+  logoUrl: "",
+  primaryColor: "#4f46e5",
+  supportEmail: "",
+  contactEmail: "",
+  allowRegistration: true,
+  requireEmailVerification: false,
+  maintenanceMode: false,
+  maintenanceMessage: "",
+};
+
+const defaultFlags: FeatureFlags = {} as FeatureFlags;
+
 export default function SettingsPage() {
   const { pushToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
-  const [settings, setSettings] = useState<AppSettings>(
-    adminMockState.appSettings,
-  );
-  const [flags, setFlags] = useState<FeatureFlags>(adminMockState.featureFlags);
+  const {
+    appSettings: remoteSettings,
+    featureFlags: remoteFlags,
+    loading,
+    saveSettings,
+    saveFeatureFlags,
+  } = useSettings();
+  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const [flags, setFlags] = useState<FeatureFlags>(defaultFlags);
   const [rateLimits, setRateLimits] = useState(rateLimitDefaults);
-  const [logoPreview, setLogoPreview] = useState<string>(
-    adminMockState.appSettings.logoUrl,
-  );
+  const [logoPreview, setLogoPreview] = useState<string>("");
 
   useEffect(() => {
-    (async () => {
-      const data = await getSettings();
-      setSettings(data.appSettings);
-      setFlags(data.featureFlags);
-      setLogoPreview(data.appSettings.logoUrl);
-    })();
-  }, []);
+    if (remoteSettings) {
+      setSettings(remoteSettings);
+      setLogoPreview(remoteSettings.logoUrl ?? "");
+    }
+    if (remoteFlags) {
+      setFlags(remoteFlags);
+    }
+  }, [remoteSettings, remoteFlags]);
 
   const saveGeneral = async () => {
-    const next = await updateSettings(settings);
+    const next = await saveSettings(settings);
     setSettings(next);
     pushToast({ title: "General settings saved", variant: "success" });
   };
 
   const saveFlags = async () => {
-    const next = await updateFeatureFlags(flags);
+    const next = await saveFeatureFlags(flags);
     setFlags(next);
     pushToast({ title: "Feature flags saved", variant: "success" });
   };
 
   const saveMaintenance = async () => {
-    const next = await updateSettings({
+    const next = await saveSettings({
       maintenanceMode: settings.maintenanceMode,
       maintenanceMessage: settings.maintenanceMessage,
     });
@@ -105,11 +119,7 @@ export default function SettingsPage() {
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2">
-          <StatusBadge
-            status={
-              adminMockState.appSettings.maintenanceMode ? "error" : "active"
-            }
-          />
+          <StatusBadge status={settings.maintenanceMode ? "error" : "active"} />
         </div>
       </div>
 

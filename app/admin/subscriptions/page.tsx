@@ -6,7 +6,6 @@ import { DrawerForm } from "@/components/admin/DrawerForm";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
-import { adminMockState } from "@/lib/admin/mockData";
 import { useMemo, useState } from "react";
 
 type PlanForm = {
@@ -20,7 +19,7 @@ type PlanForm = {
 };
 
 export default function SubscriptionsPage() {
-  const { plans, subscriptions, summary, createPlan, updatePlan } =
+  const { plans, subscriptions, summary, createPlan, updatePlan, removePlan } =
     useSubscriptions();
   const [form, setForm] = useState<PlanForm>({
     name: "",
@@ -37,13 +36,9 @@ export default function SubscriptionsPage() {
     () =>
       subscriptions.map((subscription) => {
         const plan = plans.find((item) => item.id === subscription.planId);
-        const user = adminMockState.users.find(
-          (item) => item.id === subscription.userId,
-        );
         return {
           ...subscription,
           planName: plan?.name ?? subscription.planId,
-          userName: user?.name ?? subscription.userId,
         };
       }),
     [plans, subscriptions],
@@ -93,15 +88,15 @@ export default function SubscriptionsPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-1">
         <ChartCard
           title="Revenue summary"
           description="Top-line commercial snapshot."
         >
           <div className="grid h-full grid-cols-3 gap-4">
             {[
-              ["MRR", `$${summary.mrr.toLocaleString()}`],
-              ["ARR", `$${summary.arr.toLocaleString()}`],
+              ["MRR", `$${summary.mrr?.toLocaleString()}`],
+              ["ARR", `$${summary.arr?.toLocaleString()}`],
               ["Churn", `${summary.churn}%`],
             ].map(([label, value]) => (
               <div
@@ -144,7 +139,7 @@ export default function SubscriptionsPage() {
               <span className="pb-1 text-sm text-zinc-500">/mo</span>
             </div>
             <div className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
-              Quota: {plan.aiCallQuota.toLocaleString()} calls
+              Quota: {plan.aiCallQuota?.toLocaleString()} calls
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {plan.features.map((feature) => (
@@ -203,7 +198,7 @@ export default function SubscriptionsPage() {
                   className="hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
                 >
                   <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
-                    {subscription.userName}
+                    {subscription.userId}
                   </td>
                   <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                     {subscription.planName}
@@ -364,11 +359,14 @@ export default function SubscriptionsPage() {
       <ConfirmDialog
         open={Boolean(deletePlanId)}
         title="Delete plan?"
-        description="This will remove the plan from the mock store and any linked subscriptions will remain for reporting."
+        description="This will permanently remove the plan."
         danger
         confirmLabel="Delete plan"
         onClose={() => setDeletePlanId(null)}
-        onConfirm={() => setDeletePlanId(null)}
+        onConfirm={async () => {
+          if (deletePlanId) await removePlan(deletePlanId);
+          setDeletePlanId(null);
+        }}
       />
     </div>
   );

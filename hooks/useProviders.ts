@@ -18,10 +18,13 @@ export function useProviders() {
     let mounted = true;
     (async () => {
       setLoading(true);
-      const nextProviders = await getProviders();
-      if (!mounted) return;
-      setProviders(nextProviders);
-      setLoading(false);
+      try {
+        const nextProviders = await getProviders();
+        if (!mounted) return;
+        setProviders(nextProviders);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
     return () => {
       mounted = false;

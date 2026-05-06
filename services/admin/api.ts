@@ -18,10 +18,30 @@ adminApi.interceptors.request.use((config) => {
 });
 
 adminApi.interceptors.response.use(
-  (response) => response,
+  // Unwrap the { success, data } envelope so callers get `data` directly.
+  (response) => {
+    if (
+      response.data &&
+      typeof response.data === "object" &&
+      "success" in response.data
+    ) {
+      response.data = response.data.data ?? response.data;
+    }
+    return response;
+  },
   (error) => {
+    const status = error?.response?.status as number | undefined;
     const message =
       error?.response?.data?.error ?? error?.message ?? "Request failed";
+
+    if (status === 401 && typeof window !== "undefined") {
+      sessionStorage.removeItem("admin_token");
+      sessionStorage.removeItem("admin_name");
+      sessionStorage.removeItem("admin_email");
+      sessionStorage.removeItem("admin_role");
+      window.dispatchEvent(new Event("admin-auth-changed"));
+    }
+
     return Promise.reject(new Error(message));
   },
 );

@@ -65,7 +65,7 @@ export function AdminTopbar({
             className="flex items-center gap-3 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white">
-              {adminName.slice(0, 1).toUpperCase()}
+              {(adminName ?? "A").slice(0, 1).toUpperCase()}
             </span>
             <span className="hidden text-left sm:block">
               <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
