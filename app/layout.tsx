@@ -11,7 +11,7 @@ const montserrat = Montserrat({
 
 export const metadata: Metadata = {
   title: "Softkey AI",
-  description: "AI-powered assistant",
+  description: "AI-powered assistant ",
   icons: {
     icon: "/favicon.png",
   },
