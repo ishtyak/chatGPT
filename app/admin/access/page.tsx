@@ -34,7 +34,7 @@ export default function AdminAccessPage() {
       sessionStorage.setItem("admin_name", admin.name);
       sessionStorage.setItem("admin_email", admin.email);
       sessionStorage.setItem("admin_role", admin.role);
-      window.dispatchEvent(new Event("admin-auth-changed"));
+      // window.dispatchEvent(new Event("admin-auth-changed"));
       router.push("/admin");
     } catch (err) {
       setError(

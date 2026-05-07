@@ -99,11 +99,13 @@ export default function AdminLayout({
   // Navigation guard — only runs after client has determined auth state.
   useEffect(() => {
     if (!ready) return;
+    debugger
+    const token = sessionStorage.getItem("admin_token");
     const onAccessPage = pathname === "/admin/access";
-    if (!authorized && !onAccessPage) {
+    if (!token && !onAccessPage) {
       router.replace("/admin/access");
     }
-    if (authorized && onAccessPage) {
+    if (token && onAccessPage) {
       router.replace("/admin");
     }
   }, [authorized, pathname, ready, router]);
