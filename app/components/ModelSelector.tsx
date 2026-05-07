@@ -282,7 +282,7 @@ export default function ModelSelector({ selectedModel, onSelect, onClose }: Mode
       <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
       <div
         ref={ref}
-        className="relative z-10 w-[680px] h-[560px] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl flex flex-col"
+        className="relative z-10 w-[780px] h-[560px] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl flex flex-col"
       >
       {/* Search */}
       <div className="flex items-center gap-2.5 border-b border-zinc-100 px-4 py-3">

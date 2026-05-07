@@ -42,6 +42,6 @@ adminApi.interceptors.response.use(
       window.dispatchEvent(new Event("admin-auth-changed"));
     }
 
-    return Promise.reject(new Error(message));
+    return Promise.reject(Error(message));
   },
 );

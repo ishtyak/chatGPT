@@ -35,7 +35,7 @@ export default function AdminAccessPage() {
       sessionStorage.setItem("admin_email", admin.email);
       sessionStorage.setItem("admin_role", admin.role);
       window.dispatchEvent(new Event("admin-auth-changed"));
-      router.replace("/admin");
+      router.push("/admin");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Invalid admin credentials.",
