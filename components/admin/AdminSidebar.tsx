@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { label: "Subscriptions", href: "/admin/subscriptions", icon: IconBilling },
   { label: "AI Providers", href: "/admin/ai-providers", icon: IconProviders },
   { label: "Prompts", href: "/admin/prompts", icon: IconPrompts },
-  { label: "Tools", href: "/admin/tools", icon: IconTools },
+  //{ label: "Tools", href: "/admin/tools", icon: IconTools },
   { label: "Analytics", href: "/admin/analytics", icon: IconAnalytics },
   { label: "Settings", href: "/admin/settings", icon: IconSettings },
 ];

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { getPlans } from "@/services/admin/plans.service";
+import type { Plan as BackendPlan } from "@/types/admin";
 
 /* ── Plan definitions ──────────────────────────────────────────────────────── */
 type BillingCycle = "monthly" | "yearly";
@@ -17,107 +19,86 @@ interface Plan {
   yearly: { price: number; original: number; annual: number; save: number };
   credits: string;
   buttonLabel: string;
-  buttonStyle: "dark" | "outline-blue" | "outline-orange" | "outline-purple";
   features: { icon: string; text: string }[];
   borderColor: string;
   bgGradient?: string;
 }
 
-const PLANS: Plan[] = [
+/* Colour palette cycling for dynamically loaded plans */
+const PALETTE = [
   {
-    id: "plus",
-    name: "Plus",
-    icon: "✦",
-    tagline: "For everyday AI tasks.",
-    monthly: { price: 889, original: 889 },
-    yearly: { price: 741, original: 889, annual: 8893, save: 1775 },
-    credits: "500 credits/month",
-    buttonLabel: "Get Plus",
-    buttonStyle: "dark",
     borderColor: "border-gray-200",
-    features: [
-      { icon: "🌐", text: "350+ AI models" },
-      { icon: "⌨️", text: "All slash commands" },
-      { icon: "⚡", text: "Krater Agent" },
-      { icon: "🧩", text: "Apps & Additions" },
-      { icon: "🔄", text: "Scheduled tasks" },
-      { icon: "🎙️", text: "Voice mode" },
-      { icon: "📄", text: "64k context window" },
-      { icon: "📊", text: "5 GB file storage" },
-    ],
+    bgGradient: undefined as string | undefined,
+    icon: "✦",
   },
   {
-    id: "pro",
-    name: "Pro",
-    icon: "✦",
-    tagline: "For power users and creators.",
-    monthly: { price: 1976, original: 1976 },
-    yearly: { price: 1647, original: 1976, annual: 19762, save: 3950 },
-    credits: "1,500 credits/month",
-    buttonLabel: "Get Pro",
-    buttonStyle: "dark",
     borderColor: "border-blue-300",
     bgGradient: "from-blue-50/60 to-white",
-    features: [
-      { icon: "🌐", text: "350+ AI models" },
-      { icon: "⌨️", text: "All slash commands" },
-      { icon: "⚡", text: "Krater Agent" },
-      { icon: "🧩", text: "Apps & Additions" },
-      { icon: "🔄", text: "Scheduled tasks" },
-      { icon: "🎙️", text: "Voice mode" },
-      { icon: "📄", text: "128k context window" },
-      { icon: "📊", text: "25 GB file storage" },
-    ],
+    icon: "✦",
   },
   {
-    id: "ultra",
-    name: "Ultra",
-    icon: "💎",
-    tagline: "For power users who need more.",
-    badge: { label: "Popular", color: "text-white", bg: "bg-orange-400" },
-    monthly: { price: 4842, original: 4842 },
-    yearly: { price: 4035, original: 4842, annual: 48417, save: 9687 },
-    credits: "4,000 credits/month",
-    buttonLabel: "Get Ultra",
-    buttonStyle: "dark",
     borderColor: "border-orange-300",
     bgGradient: "from-orange-50/60 to-white",
-    features: [
-      { icon: "🌐", text: "350+ AI models" },
-      { icon: "⌨️", text: "All slash commands" },
-      { icon: "⚡", text: "Krater Agent" },
-      { icon: "🧩", text: "Apps & Additions" },
-      { icon: "🔄", text: "Scheduled tasks" },
-      { icon: "🎙️", text: "Voice mode" },
-      { icon: "📄", text: "200k context window" },
-      { icon: "📊", text: "100 GB file storage" },
-    ],
+    icon: "💎",
+    badge: { label: "Popular", color: "text-white", bg: "bg-orange-400" },
   },
   {
-    id: "max",
-    name: "Max",
-    icon: "👑",
-    tagline: "For teams and heavy usage.",
-    badge: { label: "Best Value", color: "text-white", bg: "bg-purple-500" },
-    monthly: { price: 11758, original: 11758 },
-    yearly: { price: 9799, original: 11758, annual: 117585, save: 23511 },
-    credits: "10,000 credits/month",
-    buttonLabel: "Get Max",
-    buttonStyle: "dark",
     borderColor: "border-purple-300",
     bgGradient: "from-purple-50/60 to-white",
-    features: [
-      { icon: "🌐", text: "350+ AI models" },
-      { icon: "⌨️", text: "All slash commands" },
-      { icon: "⚡", text: "Krater Agent" },
-      { icon: "🧩", text: "Apps & Additions" },
-      { icon: "🔄", text: "Scheduled tasks" },
-      { icon: "🎙️", text: "Voice mode" },
-      { icon: "📄", text: "500k context window" },
-      { icon: "📊", text: "500 GB file storage" },
-    ],
+    icon: "👑",
+    badge: { label: "Best Value", color: "text-white", bg: "bg-purple-500" },
   },
+] as const;
+
+/* Map a backend feature string to an icon */
+const FEATURE_ICONS: [RegExp, string][] = [
+  [/model/i, "🌐"],
+  [/slash/i, "⌨️"],
+  [/agent/i, "⚡"],
+  [/app/i, "🧩"],
+  [/schedul/i, "🔄"],
+  [/voice/i, "🎙️"],
+  [/context/i, "📄"],
+  [/storage|file/i, "📊"],
+  [/credit/i, "🪙"],
 ];
+function featureIcon(text: string): string {
+  for (const [re, icon] of FEATURE_ICONS) {
+    if (re.test(text)) return icon;
+  }
+  return "✓";
+}
+
+function toUiPlan(raw: BackendPlan, index: number): Plan {
+  const palette = PALETTE[index % PALETTE.length];
+  const monthly = raw.priceMonthly;
+  const yearlyPrice = Math.round(monthly * 0.83);
+  const yearlyAnnual = yearlyPrice * 12;
+  const yearlySave = monthly * 12 - yearlyAnnual;
+
+  return {
+    id: raw.id,
+    name: raw.name,
+    icon: palette.icon,
+    tagline: raw.description || `${raw.name} plan`,
+    badge: "badge" in palette ? (palette as { badge: Plan["badge"] }).badge : undefined,
+    monthly: { price: monthly, original: monthly },
+    yearly: {
+      price: yearlyPrice,
+      original: monthly,
+      annual: yearlyAnnual,
+      save: yearlySave,
+    },
+    credits:
+      raw.aiCallQuota > 0
+        ? `${raw.aiCallQuota.toLocaleString()} credits/month`
+        : "",
+    buttonLabel: `Get ${raw.name}`,
+    features: raw.features.map((f) => ({ icon: featureIcon(f), text: f })),
+    borderColor: palette.borderColor,
+    bgGradient: palette.bgGradient,
+  };
+}
 
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
 function fmt(n: number) {
@@ -130,8 +111,20 @@ function fmt(n: number) {
 export default function PricingPage() {
   const [billing, setBilling] = useState<BillingCycle>("monthly");
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const { data: session } = useSession();
   const router = useRouter();
+
+  useEffect(() => {
+    getPlans()
+      .then((rows) => {
+        const active = rows.filter((p) => p.isActive);
+        setPlans(active.map(toUiPlan));
+      })
+      .catch(() => {/* silently show empty state */})
+      .finally(() => setLoadingPlans(false));
+  }, []);
 
   async function handleSubscribe(plan: Plan) {
     if (!session) {
@@ -218,7 +211,28 @@ export default function PricingPage() {
 
       {/* Plan cards */}
       <div className="max-w-6xl mx-auto px-6 pb-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {PLANS.map((plan) => {
+        {loadingPlans ? (
+          /* Loading skeleton */
+          Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm animate-pulse"
+            >
+              <div className="h-5 w-24 bg-gray-200 rounded mb-3" />
+              <div className="h-3 w-36 bg-gray-100 rounded mb-6" />
+              <div className="h-8 w-28 bg-gray-200 rounded mb-6" />
+              <div className="h-10 w-full bg-gray-200 rounded-xl mb-5" />
+              {Array.from({ length: 5 }).map((_, j) => (
+                <div key={j} className="h-3 w-full bg-gray-100 rounded mb-3" />
+              ))}
+            </div>
+          ))
+        ) : plans.length === 0 ? (
+          <div className="col-span-4 text-center py-16 text-gray-400 text-sm">
+            No active plans available. Please check back later.
+          </div>
+        ) : (
+        plans.map((plan) => {
           const isYearly = billing === "yearly";
           const price = isYearly ? plan.yearly.price : plan.monthly.price;
           const original = isYearly ? plan.yearly.original : null;
@@ -308,7 +322,8 @@ export default function PricingPage() {
               </ul>
             </div>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* Footer note */}

@@ -1,33 +1,64 @@
 import { NextRequest } from "next/server";
 import OpenAI from "openai";
 
-const MODEL_MAP: Record<string, string> = {
-  "gpt-4o": "gpt-4o",
-  "gpt-4o-mini": "gpt-4o-mini",
-  "gpt-4o-audio": "gpt-4o-audio-preview",
-  "gpt-4o-mini-search": "gpt-4o-mini-search-preview",
-  "gpt-4o-search": "gpt-4o-search-preview",
-  "gpt-4o-2024": "gpt-4o-2024-11-20",
-  "o1": "o1",
-  "o3-mini": "o3-mini",
+interface DbModel {
+  id: string;
+  apiModelId: string;
+  provider: string;
+}
+
+// OpenAI-compatible base URLs for each provider
+const PROVIDER_BASE_URL: Record<string, string> = {
+  OpenAI:     "https://api.openai.com/v1",
+  Anthropic:  "https://api.anthropic.com/v1",
+  Google:     "https://generativelanguage.googleapis.com/v1beta/openai",
+  Meta:       "https://api.together.xyz/v1",
+  Mistral:    "https://api.mistral.ai/v1",
+  xAI:        "https://api.x.ai/v1",
+  DeepSeek:   "https://api.deepseek.com/v1",
+  Perplexity: "https://api.perplexity.ai",
 };
 
-/** Fetch the active API key for a provider from the backend DB. Falls back to env. */
+// Maps provider name → api_keys table provider value
+const PROVIDER_KEY_NAME: Record<string, string> = {
+  OpenAI:     "openai",
+  Anthropic:  "anthropic",
+  Google:     "google",
+  Meta:       "meta",
+  Mistral:    "mistral",
+  xAI:        "xai",
+  DeepSeek:   "deepseek",
+  Perplexity: "perplexity",
+};
+
+/** Fetch the active API key for a provider from the backend DB. */
 async function getApiKey(provider: string): Promise<string> {
+  const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
   try {
-    const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
     const res = await fetch(`${backendUrl}/api/admin/api-key/${provider}`, {
-      next: { revalidate: 60 }, // cache for 60s at Next.js level
+      next: { revalidate: 60 },
     });
     if (res.ok) {
       const data = await res.json();
       if (data.key) return data.key as string;
     }
-  } catch {
-    // backend unreachable – fall through to env fallback
-  }
-  // Environment variable fallback
-  return process.env.OPENAI_API_KEY ?? "";
+  } catch { /* fall through */ }
+  return "";
+}
+
+/** Resolve the DB model record (apiModelId + provider) for a given model_id. */
+async function resolveModel(modelId: string): Promise<DbModel> {
+  const fallback: DbModel = { id: modelId, apiModelId: modelId, provider: "OpenAI" };
+  try {
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
+    const res = await fetch(`${backendUrl}/api/models`, { next: { revalidate: 60 } });
+    if (res.ok) {
+      const data = await res.json();
+      const found = (data.models as DbModel[] | undefined)?.find((m) => m.id === modelId);
+      if (found) return found;
+    }
+  } catch { /* fall through */ }
+  return fallback;
 }
 
 export async function POST(req: NextRequest) {
@@ -38,16 +69,23 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "messages required" }), { status: 400 });
     }
 
-    const openaiModel = MODEL_MAP[model] ?? "gpt-4o";
+    const dbModel = await resolveModel(model ?? "gpt-4o");
+    const { apiModelId, provider } = dbModel;
 
-    const apiKey = await getApiKey("openai");
+    const keyName = PROVIDER_KEY_NAME[provider] ?? provider.toLowerCase();
+    const apiKey  = await getApiKey(keyName);
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "No OpenAI API key configured." }), { status: 500 });
+      return new Response(
+        JSON.stringify({ error: `No API key configured for provider: ${provider}` }),
+        { status: 500 },
+      );
     }
-    const openai = new OpenAI({ apiKey });
 
-    const stream = await openai.chat.completions.create({
-      model: openaiModel,
+    const baseURL = PROVIDER_BASE_URL[provider] ?? PROVIDER_BASE_URL.OpenAI;
+    const client  = new OpenAI({ apiKey, baseURL });
+
+    const stream = await client.chat.completions.create({
+      model: apiModelId,
       messages,
       stream: true,
     });
@@ -58,9 +96,7 @@ export async function POST(req: NextRequest) {
         try {
           for await (const chunk of stream) {
             const token = chunk.choices[0]?.delta?.content ?? "";
-            if (token) {
-              controller.enqueue(encoder.encode(token));
-            }
+            if (token) controller.enqueue(encoder.encode(token));
           }
         } finally {
           controller.close();

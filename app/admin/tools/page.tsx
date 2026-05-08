@@ -164,7 +164,7 @@ export default function ToolsPage() {
                     {tool.description}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {tool.tags.map((tag) => (
+                    {tool?.tags?.map((tag) => (
                       <span
                         key={tag}
                         className="rounded-full bg-indigo-600/10 px-3 py-1 text-xs text-indigo-400"

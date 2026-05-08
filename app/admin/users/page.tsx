@@ -7,13 +7,14 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { adminApi } from "@/services/admin/api";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { useToast } from "@/hooks/useToast";
 import { useUsers } from "@/hooks/useUsers";
 import type { User } from "@/types/admin";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function UsersPage() {
   const router = useRouter();
@@ -43,6 +44,26 @@ export default function UsersPage() {
   } = useUsers(1, 50);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  // ── Credit adjustment state ─────────────────────────────────────────────
+  const [editUserCredits, setEditUserCredits] = useState<number | null>(null);
+  const [creditAdjust, setCreditAdjust] = useState<string>("");
+  const [creditReason, setCreditReason] = useState<string>("");
+  const [creditLoading, setCreditLoading] = useState(false);
+  const prevEditUserId = useRef<string | null>(null);
+
+  // Fetch the selected user's credit balance when the edit drawer opens
+  useEffect(() => {
+    if (!editUser) { setEditUserCredits(null); return; }
+    if (prevEditUserId.current === editUser.id) return;
+    prevEditUserId.current = editUser.id;
+    setCreditAdjust("");
+    setCreditReason("");
+    adminApi
+      .get(`/payments/users/${editUser.id}/credits`)
+      .then((res: any) => setEditUserCredits(res.data?.balance ?? res.data ?? null))
+      .catch(() => setEditUserCredits(null));
+  }, [editUser]);
 
   const columns = useMemo(
     () => [
@@ -98,6 +119,21 @@ export default function UsersPage() {
         key: "usage",
         header: "AI Usage",
         render: (user: User) => <span>{user.aiUsage?.toLocaleString()}</span>,
+      },
+      {
+        key: "credits",
+        header: "Credits",
+        render: (user: User) => (
+          <button
+            type="button"
+            onClick={() => setEditUser(user)}
+            className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+            title="Click to adjust credits"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v4l3 3"/></svg>
+            Edit
+          </button>
+        ),
       },
       {
         key: "joined",
@@ -294,7 +330,10 @@ export default function UsersPage() {
         open={Boolean(editUser)}
         title={editUser ? `Edit ${editUser.name}` : "Edit user"}
         description="Update core account fields and plan assignment."
-        onClose={() => setEditUser(null)}
+        onClose={() => {
+          setEditUser(null);
+          prevEditUserId.current = null;
+        }}
         footer={
           <div className="flex justify-end gap-3">
             <button
@@ -310,6 +349,7 @@ export default function UsersPage() {
                 await update(editUser.id, editUser);
                 pushToast({ title: "User updated", variant: "success" });
                 setEditUser(null);
+                prevEditUserId.current = null;
               }}
             >
               Save changes
@@ -372,6 +412,61 @@ export default function UsersPage() {
                 <option value="unverified">Unverified</option>
               </select>
             </label>
+
+            {/* ── Credit adjustment ── */}
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-3 dark:border-indigo-900 dark:bg-indigo-950/30">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400">Wallet Credits</span>
+                <span className="text-lg font-bold text-indigo-700 dark:text-indigo-300 tabular-nums">
+                  {editUserCredits !== null ? editUserCredits : "…"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  placeholder="e.g. +10 or -5"
+                  value={creditAdjust}
+                  onChange={(e) => setCreditAdjust(e.target.value)}
+                  className="w-28 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                />
+                <input
+                  type="text"
+                  placeholder="Reason (optional)"
+                  value={creditReason}
+                  onChange={(e) => setCreditReason(e.target.value)}
+                  className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={creditLoading || !creditAdjust || Number(creditAdjust) === 0 || isNaN(Number(creditAdjust))}
+                onClick={async () => {
+                  if (!editUser || !creditAdjust) return;
+                  const amount = Number(creditAdjust);
+                  if (isNaN(amount) || amount === 0) return;
+                  setCreditLoading(true);
+                  try {
+                    const res = await adminApi.post("/payments/adjust", {
+                      userId: editUser.id,
+                      amount,
+                      reason: creditReason || (amount > 0 ? "admin_add" : "admin_deduct"),
+                    });
+                    const newBalance = (res as any).data?.balance ?? (editUserCredits ?? 0) + amount;
+                    setEditUserCredits(typeof newBalance === "number" ? newBalance : (editUserCredits ?? 0) + amount);
+                    setCreditAdjust("");
+                    setCreditReason("");
+                    pushToast({ title: `Credits ${amount > 0 ? "added" : "deducted"} (${amount > 0 ? "+" : ""}${amount})`, variant: "success" });
+                  } catch (err: any) {
+                    pushToast({ title: "Failed to adjust credits", description: err?.message, variant: "error" });
+                  } finally {
+                    setCreditLoading(false);
+                  }
+                }}
+                className="w-full rounded-xl bg-indigo-600 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {creditLoading ? "Applying…" : "Apply adjustment"}
+              </button>
+            </div>
           </div>
         )}
       </DrawerForm>

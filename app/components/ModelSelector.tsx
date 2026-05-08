@@ -11,7 +11,7 @@ interface Model {
   tags: string[];
   cost: number;
   speed: number;       // 0–100
-  ecoImpact: number;   // 0–100 (lower = greener, shown as inverse)
+  ecoImpact: number;   // 0–100 (lower = greener)
   context: string;
   icon: React.ReactNode;
 }
@@ -94,60 +94,51 @@ function PerplexityIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-// ── Model data ─────────────────────────────────────────────────────────────────
+// ── Provider icons (kept local — they are UI-only SVGs) ───────────────────────
 
-export const MODELS: Model[] = [
-  // OpenAI
-  { id: "gpt-4o", name: "GPT-4o", description: "Flagship multimodal intelligence", provider: "OpenAI", tags: ["Vision", "Fast"], cost: 0.5, speed: 85, ecoImpact: 60, context: "128K", icon: <OpenAIIcon /> },
-  { id: "gpt-4o-mini", name: "GPT-4o-mini", description: "Fast, affordable everyday assistant", provider: "OpenAI", tags: ["Fast", "Cheap"], cost: 0.05, speed: 95, ecoImpact: 30, context: "128K", icon: <OpenAIIcon /> },
-  { id: "gpt-4o-audio", name: "GPT-4o Audio", description: "Experimental features", provider: "OpenAI", tags: ["Apps"], cost: 0.75, speed: 70, ecoImpact: 65, context: "128K", icon: <OpenAIIcon /> },
-  { id: "gpt-4o-mini-search", name: "GPT-4o-mini Search Preview", description: "Lightweight, fast responses", provider: "OpenAI", tags: ["Fast", "Cheap"], cost: 0.2, speed: 90, ecoImpact: 30, context: "128K", icon: <OpenAIIcon /> },
-  { id: "gpt-4o-search", name: "GPT-4o Search Preview", description: "Experimental features", provider: "OpenAI", tags: ["Vision"], cost: 0.75, speed: 80, ecoImpact: 60, context: "128K", icon: <OpenAIIcon /> },
-  { id: "gpt-4o-2024", name: "GPT-4o (2024-11-20)", description: "OpenAI language model", provider: "OpenAI", tags: ["Vision"], cost: 0.75, speed: 80, ecoImpact: 60, context: "128K", icon: <OpenAIIcon /> },
-  { id: "o1", name: "o1", description: "Advanced reasoning model", provider: "OpenAI", tags: ["Vision"], cost: 1.5, speed: 50, ecoImpact: 80, context: "200K", icon: <OpenAIIcon /> },
-  { id: "o3-mini", name: "o3-mini", description: "Fast reasoning model", provider: "OpenAI", tags: ["Fast"], cost: 0.3, speed: 88, ecoImpact: 35, context: "200K", icon: <OpenAIIcon /> },
-  // Anthropic
-  { id: "claude-opus-4-6", name: "Claude Opus 4.6", description: "Most intelligent model", provider: "Anthropic", tags: ["Vision", "Apps"], cost: 1.5, speed: 60, ecoImpact: 75, context: "200K", icon: <AnthropicIcon /> },
-  { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", description: "Ideal balance of speed & smarts", provider: "Anthropic", tags: ["Vision", "Fast"], cost: 0.6, speed: 80, ecoImpact: 55, context: "200K", icon: <AnthropicIcon /> },
-  { id: "claude-haiku-3-5", name: "Claude Haiku 3.5", description: "Fastest Claude model", provider: "Anthropic", tags: ["Fast", "Cheap"], cost: 0.08, speed: 98, ecoImpact: 20, context: "200K", icon: <AnthropicIcon /> },
-  { id: "claude-3-opus", name: "Claude 3 Opus", description: "Powerful for complex tasks", provider: "Anthropic", tags: ["Vision"], cost: 1.5, speed: 55, ecoImpact: 80, context: "200K", icon: <AnthropicIcon /> },
-  // Google
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Ultra-fast next-gen model", provider: "Google", tags: ["Vision", "Apps", "Private"], cost: 0.2, speed: 95, ecoImpact: 45, context: "1.0M", icon: <GoogleIcon /> },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Premium reasoning powerhouse", provider: "Google", tags: ["Vision", "Apps"], cost: 0.63, speed: 75, ecoImpact: 65, context: "1.0M", icon: <GoogleIcon /> },
-  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Fast multimodal model", provider: "Google", tags: ["Vision", "Fast", "Cheap"], cost: 0.05, speed: 92, ecoImpact: 25, context: "1.0M", icon: <GoogleIcon /> },
-  { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Advanced reasoning & long context", provider: "Google", tags: ["Vision"], cost: 0.5, speed: 70, ecoImpact: 60, context: "1.0M", icon: <GoogleIcon /> },
-  // Meta
-  { id: "llama-3.3-70b", name: "Llama 3.3 70B", description: "Open-source powerhouse", provider: "Meta", tags: ["Fast", "Cheap"], cost: 0.1, speed: 88, ecoImpact: 40, context: "128K", icon: <MetaIcon /> },
-  { id: "llama-3.2-vision", name: "Llama 3.2 Vision", description: "Multimodal open model", provider: "Meta", tags: ["Vision"], cost: 0.2, speed: 80, ecoImpact: 45, context: "128K", icon: <MetaIcon /> },
-  { id: "llama-3.1-405b", name: "Llama 3.1 405B", description: "Largest open-source model", provider: "Meta", tags: ["Apps"], cost: 0.8, speed: 50, ecoImpact: 85, context: "128K", icon: <MetaIcon /> },
-  // Mistral
-  { id: "mistral-large", name: "Mistral Large", description: "Top-tier reasoning", provider: "Mistral", tags: ["Vision"], cost: 0.8, speed: 72, ecoImpact: 65, context: "128K", icon: <MistralIcon /> },
-  { id: "mistral-small", name: "Mistral Small", description: "Efficient everyday model", provider: "Mistral", tags: ["Fast", "Cheap"], cost: 0.1, speed: 90, ecoImpact: 30, context: "128K", icon: <MistralIcon /> },
-  { id: "codestral", name: "Codestral", description: "Optimized for coding", provider: "Mistral", tags: ["Apps"], cost: 0.3, speed: 85, ecoImpact: 40, context: "256K", icon: <MistralIcon /> },
-  // xAI
-  { id: "grok-2", name: "Grok 2", description: "Real-time internet access", provider: "xAI", tags: ["Vision", "Fast"], cost: 0.5, speed: 82, ecoImpact: 55, context: "131K", icon: <XAIIcon /> },
-  { id: "grok-2-mini", name: "Grok 2 Mini", description: "Fast & affordable Grok", provider: "xAI", tags: ["Fast", "Cheap"], cost: 0.1, speed: 93, ecoImpact: 30, context: "131K", icon: <XAIIcon /> },
-  // DeepSeek
-  { id: "deepseek-v3", name: "DeepSeek V3", description: "Cutting-edge open model", provider: "DeepSeek", tags: ["Fast", "Cheap"], cost: 0.07, speed: 88, ecoImpact: 35, context: "64K", icon: <DeepSeekIcon /> },
-  { id: "deepseek-r1", name: "DeepSeek R1", description: "Chain-of-thought reasoning", provider: "DeepSeek", tags: ["Apps"], cost: 0.2, speed: 65, ecoImpact: 60, context: "64K", icon: <DeepSeekIcon /> },
-  // Perplexity
-  { id: "sonar-pro", name: "Sonar Pro", description: "Real-time web search", provider: "Perplexity", tags: ["Fast"], cost: 0.6, speed: 80, ecoImpact: 50, context: "200K", icon: <PerplexityIcon /> },
-  { id: "sonar", name: "Sonar", description: "Fast online search model", provider: "Perplexity", tags: ["Fast", "Cheap"], cost: 0.1, speed: 90, ecoImpact: 30, context: "200K", icon: <PerplexityIcon /> },
-];
+const PROVIDER_ICON_MAP: Record<string, React.ReactNode> = {
+  OpenAI:     <OpenAIIcon />,
+  Anthropic:  <AnthropicIcon />,
+  Google:     <GoogleIcon />,
+  Meta:       <MetaIcon />,
+  Mistral:    <MistralIcon />,
+  xAI:        <XAIIcon />,
+  DeepSeek:   <DeepSeekIcon />,
+  Perplexity: <PerplexityIcon />,
+};
 
-const PROVIDERS = ["OpenAI", "Anthropic", "Google", "Meta", "Mistral", "xAI", "DeepSeek", "Perplexity"];
+function providerIcon(provider: string): React.ReactNode {
+  return PROVIDER_ICON_MAP[provider] ?? <OpenAIIcon />;
+}
+
 const FEATURE_TAGS = ["Fast", "Vision", "Private", "Apps", "Cheap"];
 
 const PROVIDER_ICONS: Record<string, React.ReactNode> = {
-  OpenAI: <OpenAIIcon size={14} />,
-  Anthropic: <AnthropicIcon size={14} />,
-  Google: <GoogleIcon size={14} />,
-  Meta: <MetaIcon size={14} />,
-  Mistral: <MistralIcon size={14} />,
-  xAI: <XAIIcon size={14} />,
-  DeepSeek: <DeepSeekIcon size={14} />,
+  OpenAI:     <OpenAIIcon size={14} />,
+  Anthropic:  <AnthropicIcon size={14} />,
+  Google:     <GoogleIcon size={14} />,
+  Meta:       <MetaIcon size={14} />,
+  Mistral:    <MistralIcon size={14} />,
+  xAI:        <XAIIcon size={14} />,
+  DeepSeek:   <DeepSeekIcon size={14} />,
   Perplexity: <PerplexityIcon size={14} />,
 };
+
+/** Fetch models from the Next.js API route (which proxies to the backend DB). */
+async function fetchModels(): Promise<Model[]> {
+  try {
+    const res = await fetch("/api/models", { next: { revalidate: 60 } } as RequestInit);
+    if (!res.ok) return [];
+    const data = await res.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data.models ?? []).map((m: any) => ({
+      ...m,
+      icon: providerIcon(m.provider),
+    }));
+  } catch {
+    return [];
+  }
+}
 
 // ── Tooltip card ──────────────────────────────────────────────────────────────
 
@@ -224,9 +215,9 @@ function ModelRow({ model, selected, onSelect }: { model: Model; selected: boole
       </div>
       <div className="flex items-center gap-1 text-xs text-amber-500 font-medium shrink-0">
         {hovered && (
-          <button className="mr-1 text-zinc-300 hover:text-red-400 transition-colors">
+          <div role="button" tabIndex={0} className="mr-1 text-zinc-300 hover:text-red-400 transition-colors cursor-pointer">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          </button>
+          </div>
         )}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         ~{model.cost}
@@ -248,7 +239,17 @@ export default function ModelSelector({ selectedModel, onSelect, onClose }: Mode
   const [search, setSearch] = useState("");
   const [activeProvider, setActiveProvider] = useState("OpenAI");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [models, setModels] = useState<Model[]>([]);
+  const [loadingModels, setLoadingModels] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Fetch models from DB on first open
+  useEffect(() => {
+    fetchModels().then((loaded) => {
+      setModels(loaded);
+      setLoadingModels(false);
+    });
+  }, []);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -258,7 +259,10 @@ export default function ModelSelector({ selectedModel, onSelect, onClose }: Mode
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
-  const filtered = MODELS.filter((m) => {
+  // Build provider list dynamically from loaded models
+  const providers = Array.from(new Set(models.map((m) => m.provider)));
+
+  const filtered = models.filter((m) => {
     const matchesProvider = m.provider === activeProvider;
     const matchesTag = activeTag ? m.tags.includes(activeTag) : true;
     const matchesSearch = search
@@ -268,7 +272,7 @@ export default function ModelSelector({ selectedModel, onSelect, onClose }: Mode
     return matchesProvider && matchesTag && matchesSearch;
   });
 
-  const total = MODELS.filter((m) => {
+  const total = models.filter((m) => {
     if (!search) return true;
     return (
       m.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -294,8 +298,7 @@ export default function ModelSelector({ selectedModel, onSelect, onClose }: Mode
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Search models... (${total})`}
-          className="flex-1 bg-transparent text-sm text-zinc-700 placeholder-zinc-400 outline-none"
+          placeholder={`Search models... (${total})`}          className="flex-1 bg-transparent text-sm text-zinc-700 placeholder-zinc-400 outline-none"
         />
         {search && (
           <button onClick={() => setSearch("")} className="text-zinc-400 hover:text-zinc-600">
@@ -306,7 +309,7 @@ export default function ModelSelector({ selectedModel, onSelect, onClose }: Mode
 
       {/* Provider tabs */}
       <div className="flex items-center gap-1 overflow-x-auto border-b border-zinc-100 px-3 py-2" style={{scrollbarWidth:'none',msOverflowStyle:'none'} as React.CSSProperties}>
-        {PROVIDERS.map((p) => (
+        {providers.map((p) => (
           <button
             key={p}
             onClick={() => setActiveProvider(p)}
@@ -350,7 +353,19 @@ export default function ModelSelector({ selectedModel, onSelect, onClose }: Mode
 
       {/* Model list */}
       <div className="overflow-y-auto px-2 py-2" style={{scrollbarWidth:'none',msOverflowStyle:'none'} as React.CSSProperties}>
-        {filtered.length === 0 ? (
+        {loadingModels ? (
+          <div className="space-y-1 px-1 py-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+                <div className="h-8 w-8 rounded-full bg-zinc-100 animate-pulse" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-28 rounded bg-zinc-100 animate-pulse" />
+                  <div className="h-2.5 w-44 rounded bg-zinc-100 animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <p className="py-8 text-center text-sm text-zinc-400">No models found</p>
         ) : (
           filtered.map((model) => (

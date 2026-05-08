@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2026-04-22.dahlia",
-});
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+async function getStripeConfigFromDb() {
+  try {
+    const backend = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!backend) return {};
+    const res = await fetch(`${backend.replace(/\/$/, "")}/api/admin/settings`);
+    if (!res.ok) return {};
+    const data = await res.json();
+    return {
+      secret: data?.appSettings?.stripeSecretKey,
+      webhookSecret: data?.appSettings?.stripeWebhookSecret || data?.appSettings?.STRIPE_WEBHOOK_SECRET,
+    };
+  } catch (err) {
+    console.error("failed to fetch stripe config from db", err);
+    return {};
+  }
+}
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -14,6 +25,17 @@ export async function POST(req: Request) {
   if (!signature) {
     return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
   }
+
+  const cfg = await getStripeConfigFromDb();
+  const secret = cfg.secret || process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = cfg.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!secret || !webhookSecret) {
+    console.error("Stripe secret/webhook not configured");
+    return NextResponse.json({ error: "Stripe configuration missing" }, { status: 500 });
+  }
+
+  const stripe = new Stripe(secret, { apiVersion: "2026-04-22.dahlia" });
 
   let event: Stripe.Event;
   try {

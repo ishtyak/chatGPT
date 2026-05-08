@@ -131,14 +131,14 @@ export default function AdminLayout({
   return (
     <ToastProvider>
       <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-        <div className="flex min-h-screen">
+        <div className="flex h-screen">
           <AdminSidebar
             collapsed={collapsed}
             mobileOpen={mobileOpen}
             onCloseMobile={() => setMobileOpen(false)}
             badgeCounts={{}}
           />
-          <div className="flex min-h-screen flex-1 flex-col">
+          <div className="flex min-h-screen flex-1 flex-col overflow-y-scroll">
             <AdminTopbar
               adminName={adminName}
               adminEmail={adminEmail}
@@ -147,7 +147,7 @@ export default function AdminLayout({
               onSignOut={handleSignOut}
               notifications={[]}
             />
-            <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+            <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 ">
               <div className="mx-auto w-full max-w-7xl">{children}</div>
             </main>
           </div>

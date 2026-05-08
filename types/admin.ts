@@ -195,6 +195,18 @@ export interface AppSettings {
   brandTagline: string;
   emailFromName: string;
   emailFromAddress: string;
+  // OpenAI
+  openaiApiKey: string;
+  // Google OAuth
+  googleClientId: string;
+  googleClientSecret: string;
+  // Replicate
+  replicateApiToken: string;
+  // Auth / Stripe secrets
+  nextauthSecret?: string;
+  nextauthUrl?: string;
+  stripeSecretKey?: string;
+  stripePublishableKey?: string;
 }
 
 export interface FeatureFlags {

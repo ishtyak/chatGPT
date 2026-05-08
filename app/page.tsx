@@ -30,8 +30,9 @@ import {
 import AdditionsView from "./components/AdditionsView";
 import AuthModal from "./components/AuthModal";
 import ExploreView from "./components/ExploreView";
-import ModelSelector, { MODELS } from "./components/ModelSelector";
+import ModelSelector from "./components/ModelSelector";
 import TemplatesView from "./components/TemplatesView";
+import UpgradeModal from "./components/UpgradeModal";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -735,29 +736,47 @@ export default function Home() {
   const accessToken = (session as any)?.accessToken as string | undefined;
   const [authModal, setAuthModal] = useState<"signup" | "signin" | null>(null);
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState("claude-opus-4-6");
+  const [selectedModelId, setSelectedModelId] = useState("gemini-2.5-flash");
+  const [availableModels, setAvailableModels] = useState<{ id: string; name: string; icon: React.ReactNode }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/models")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.models) setAvailableModels(data.models);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Chat state ───────────────────────────────────────────────────────────
   type Message = { id: string; role: "user" | "assistant"; content: string };
   const [messages, setMessages] = useState<Message[]>([]);
-  const FREE_TIER_MESSAGE_LIMIT = 2;
+
+  // Guest (not logged-in) limit: show login prompt after 2 messages
+  const GUEST_MESSAGE_LIMIT = 2;
   const userMessageCount = messages.filter((m) => m.role === "user").length;
-
-  const [hasPlan, setHasPlan] = useState(false);
   const [freeTierUsage, setFreeTierUsage] = useState(0);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (localStorage.getItem("hasPlan") === "true") {
-        setHasPlan(true);
-      }
-    }
-  }, []);
-
   const totalFreeTierUsage = Math.max(freeTierUsage, userMessageCount);
-  const freeTierBlocked =
-    !hasPlan && totalFreeTierUsage >= FREE_TIER_MESSAGE_LIMIT;
-  const chatAccessBlocked = !isLoggedIn || freeTierBlocked;
+
+  // For logged-in users the gate is wallet credits only (no message count limit).
+  // Guests are blocked after GUEST_MESSAGE_LIMIT messages.
+  const freeTierBlocked = !isLoggedIn && totalFreeTierUsage >= GUEST_MESSAGE_LIMIT;
+  const chatAccessBlocked = !isLoggedIn;
+
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+
+  // ── Wallet / credits ─────────────────────────────────────────────────────
+  const [walletCredits, setWalletCredits] = useState<number | null>(null);
+  const shouldDeductRef = useRef(false);
+  const isTypingPrevRef = useRef(false);
+
+  // Auto-open upgrade modal when a logged-in user runs out of credits
+  useEffect(() => {
+    if (isLoggedIn && walletCredits !== null && walletCredits <= 0) {
+      setUpgradeModalOpen(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletCredits]);
 
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -860,8 +879,10 @@ export default function Home() {
     [],
   );
 
-  // Chars revealed per animation frame (~60fps × 3 = ~180 chars/sec)
-  const CHARS_PER_FRAME = 3;
+  // Chars revealed per animation frame (~60fps × 1 = ~60 chars/sec for comfortable reading)
+  // When the HTTP stream is already done and there's a large backlog, catch up faster
+  const CHARS_PER_FRAME = 1;
+  const CHARS_PER_FRAME_CATCHUP = 6; // used once stream is done to avoid long tail
 
   function startAnimation(aiId: string) {
     streamingIdRef.current = aiId;
@@ -870,10 +891,15 @@ export default function Home() {
     function frame() {
       const full = fullTextRef.current;
       const done = streamDoneRef.current;
+      const remaining = full.length - displayRef.current;
 
-      if (displayRef.current < full.length) {
+      if (remaining > 0) {
+        // Catch up quickly once the HTTP stream finishes so the response
+        // doesn't feel like it drags on after the last token arrives.
+        const step =
+          done && remaining > 40 ? CHARS_PER_FRAME_CATCHUP : CHARS_PER_FRAME;
         displayRef.current = Math.min(
-          displayRef.current + CHARS_PER_FRAME,
+          displayRef.current + step,
           full.length,
         );
         const visible = full.slice(0, displayRef.current);
@@ -965,11 +991,28 @@ export default function Home() {
   }, [messages, isTyping]);
 
   async function handleSend() {
+    // Non-logged-in guests blocked after GUEST_MESSAGE_LIMIT messages
     if (freeTierBlocked) {
+      setUpgradeModalOpen(true);
       return;
     }
-    const nextUsage = totalFreeTierUsage + 1;
-    setFreeTierUsage(nextUsage);
+    // Logged-in users blocked when wallet is empty
+    if (isLoggedIn && walletCredits !== null && walletCredits <= 0) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+    // Track guest message count (logged-in users use credits, not this counter)
+    if (!isLoggedIn) {
+      const nextUsage = totalFreeTierUsage + 1;
+      setFreeTierUsage(nextUsage);
+      if (session?.user?.email) {
+        localStorage.setItem(`ftl_${session.user.email}`, String(nextUsage));
+      }
+    }
+    // Mark that a credit should be deducted once the response completes
+    if (isLoggedIn) {
+      shouldDeductRef.current = true;
+    }
 
     const text = inputValue.trim();
     if (!text) return;
@@ -1475,6 +1518,22 @@ export default function Home() {
   }
 
   // ── Backend API helpers ─────────────────────────────────────────────────
+  async function fetchWalletCredits(token: string) {
+    try {
+      const res = await fetch(`${BACKEND_API}/api/payments/credits`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data: any = await res.json();
+        const bal = typeof data.balance === "number" ? data.balance : data.credits ?? null;
+        if (bal !== null) setWalletCredits(bal);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   async function fetchRecentChats(token: string) {
     try {
       const res = await fetch(`${BACKEND_API}/api/conversations`, {
@@ -1552,11 +1611,36 @@ export default function Home() {
     }
   }
 
-  // Fetch recent chats whenever the user signs in
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Fetch recent chats + wallet whenever the user signs in
   useEffect(() => {
-    if (isLoggedIn && accessToken) void fetchRecentChats(accessToken);
+    if (isLoggedIn && accessToken) {
+      void fetchRecentChats(accessToken);
+      void fetchWalletCredits(accessToken);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, accessToken]);
+
+  // Deduct 1 credit when isTyping goes from true → false after a request
+  useEffect(() => {
+    if (isTypingPrevRef.current && !isTyping && shouldDeductRef.current && isLoggedIn && accessToken) {
+      shouldDeductRef.current = false;
+      fetch(`${BACKEND_API}/api/payments/deduct`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then((data: any) => {
+          if (data && typeof data.balance === "number") {
+            setWalletCredits(data.balance);
+            if (data.balance <= 0) setUpgradeModalOpen(true);
+          }
+        })
+        .catch(() => {});
+    }
+    isTypingPrevRef.current = isTyping;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTyping]);
 
   // ── Search helper ─────────────────────────────────────────────────────────
   function groupChatsByDate(chats: RecentChat[], query: string) {
@@ -2416,8 +2500,16 @@ export default function Home() {
               conversationId === null &&
               activeView === null
             }
-            disabled={chatAccessBlocked}
+            disabled={false}
             onClick={() => {
+              if (freeTierBlocked) {
+                setUpgradeModalOpen(true);
+                return;
+              }
+              if (isLoggedIn && walletCredits !== null && walletCredits <= 0) {
+                setUpgradeModalOpen(true);
+                return;
+              }
               setMessages([]);
               setActiveConversation(null);
               setInputValue("");
@@ -2602,34 +2694,66 @@ export default function Home() {
         {/* Bottom: user info or sign-up */}
         <div className="border-t border-zinc-200 px-4 py-4">
           {isLoggedIn ? (
-            <div className="flex items-center gap-3">
-              <div className="relative shrink-0">
-                {userImage ? (
-                  <Image
-                    src={userImage}
-                    alt={userName}
-                    width={32}
-                    height={32}
-                    className="rounded-full"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br from-amber-400 to-orange-500 text-white text-sm font-semibold">
-                    {userInitial}
+            <div className="flex flex-col gap-2">
+              {/* ── Credits bar ── */}
+              <div className="rounded-xl bg-zinc-50 border border-zinc-100 px-3 py-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-medium text-zinc-500 flex items-center gap-1">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                    Credits
+                  </span>
+                  <span className={`text-sm font-bold tabular-nums ${walletCredits !== null && walletCredits <= 2 ? "text-red-600" : "text-zinc-800"}`}>
+                    {walletCredits !== null ? walletCredits : "…"}
+                  </span>
+                </div>
+                {walletCredits !== null && (
+                  <div className="h-1.5 rounded-full bg-zinc-200 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${walletCredits <= 2 ? "bg-red-400" : walletCredits <= 5 ? "bg-amber-400" : "bg-indigo-500"}`}
+                      style={{ width: `${Math.min(100, Math.max(2, (walletCredits / 10) * 100))}%` }}
+                    />
                   </div>
                 )}
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-400" />
+                {walletCredits !== null && walletCredits <= 3 && (
+                  <button
+                    onClick={() => setUpgradeModalOpen(true)}
+                    className="mt-2 w-full rounded-lg bg-indigo-600 py-1 text-center text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+                  >
+                    Buy credits →
+                  </button>
+                )}
               </div>
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium text-zinc-900">
-                  {userName}
-                </span>
-                <button
-                  onClick={() => signOut()}
-                  className="text-left text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
-                >
-                  Sign out
-                </button>
+
+              {/* ── Avatar + sign out ── */}
+              <div className="flex items-center gap-3">
+                <div className="relative shrink-0">
+                  {userImage ? (
+                    <Image
+                      src={userImage}
+                      alt={userName}
+                      width={32}
+                      height={32}
+                      className="rounded-full"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br from-amber-400 to-orange-500 text-white text-sm font-semibold">
+                      {userInitial}
+                    </div>
+                  )}
+                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-400" />
+                </div>
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium text-zinc-900">
+                    {userName}
+                  </span>
+                  <button
+                    onClick={() => signOut()}
+                    className="text-left text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+                  >
+                    Sign out
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -2679,7 +2803,7 @@ export default function Home() {
           )}
           <div className="relative">
             {(() => {
-              const active = MODELS.find((m) => m.id === selectedModelId);
+              const active = availableModels.find((m) => m.id === selectedModelId);
               return (
                 <button
                   onClick={() => setModelSelectorOpen((o) => !o)}
@@ -2701,7 +2825,7 @@ export default function Home() {
           )}
           {/* Upgrade button */}
           <button
-            onClick={() => router.push("/pricing")}
+            onClick={() => setUpgradeModalOpen(true)}
             className="ml-auto flex items-center gap-1.5 rounded-full bg-linear-to-r from-violet-500 to-indigo-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-violet-600 hover:to-indigo-600 active:scale-95 transition-all duration-150"
             title="Upgrade plan"
           >
@@ -2861,19 +2985,7 @@ export default function Home() {
                     e.target.value = "";
                   }}
                 />
-                {freeTierBlocked && (
-                  <div className="absolute -top-12 left-0 right-0 flex justify-center">
-                    <div className="rounded-full bg-red-100 px-4 py-1.5 text-xs font-medium text-red-600 shadow-sm border border-red-200 flex items-center gap-2">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                      Free limit reached. You have used all{" "}
-                      {FREE_TIER_MESSAGE_LIMIT} free messages. Upgrade to view
-                      plans.
-                    </div>
-                  </div>
-                )}
+                {/* Removed persistent 'Free limit reached' banner per request */}
                 <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 py-3 shadow-sm focus-within:border-zinc-400 focus-within:shadow-md transition-all">
                   <div ref={plusMenuRef} className="relative shrink-0">
                     {plusMenuOpen && activePanel !== "edit" && renderPlusMenu()}
@@ -2958,7 +3070,7 @@ export default function Home() {
                     onKeyDown={(e) => e.key === "Enter" && handleSend()}
                     placeholder={
                       chatAccessBlocked
-                        ? "Free limit reached. View plans to continue."
+                        ? "View plans to continue."
                         : activePanel === "edit"
                           ? editImagePreview
                             ? "Describe your edit..."
@@ -3288,9 +3400,7 @@ export default function Home() {
             {/* Fixed input bar at bottom */}
             <div className="border-t border-zinc-100 px-6 py-4">
               <div className="mx-auto w-full max-w-2xl">
-                {freeTierBlocked && (
-                  <div className="mb-4">{renderUpgradePrompt()}</div>
-                )}
+                {/* Removed persistent 'Free limit reached' banner per request */}
                 <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 py-3 shadow-sm focus-within:border-zinc-400 focus-within:shadow-md transition-all">
                   <div ref={plusMenuRef} className="relative shrink-0">
                     {plusMenuOpen && activePanel !== "edit" && renderPlusMenu()}
@@ -3375,7 +3485,7 @@ export default function Home() {
                     onKeyDown={(e) => e.key === "Enter" && handleSend()}
                     placeholder={
                       chatAccessBlocked
-                        ? "Free limit reached. View plans to continue."
+                        ? "View plans to continue."
                         : activePanel === "edit"
                           ? editImagePreview
                             ? "Describe your edit..."
@@ -3449,6 +3559,11 @@ export default function Home() {
         <AuthModal defaultMode={authModal} onClose={() => setAuthModal(null)} />
       )}
 
+      {/* Upgrade / Pricing Modal — shown automatically when free limit is hit */}
+      {upgradeModalOpen && (
+        <UpgradeModal onClose={() => setUpgradeModalOpen(false)} />
+      )}
+
       {/* ── Search modal ── */}
       {searchOpen && (
         <div
@@ -3510,13 +3625,23 @@ export default function Home() {
               {!searchQuery && (
                 <button
                   onClick={() => {
+                    const blocked = freeTierBlocked || (isLoggedIn && walletCredits !== null && walletCredits <= 0);
+                    if (blocked) {
+                      setSearchOpen(false);
+                      setUpgradeModalOpen(true);
+                      return;
+                    }
                     setMessages([]);
                     setActiveConversation(null);
                     setInputValue("");
                     setActivePanel(null);
                     setSearchOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 px-5 py-3.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 transition-colors"
+                  className={`flex w-full items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors ${
+                    (freeTierBlocked || (isLoggedIn && walletCredits !== null && walletCredits <= 0))
+                      ? "text-zinc-400 opacity-60 cursor-not-allowed"
+                      : "text-zinc-800 hover:bg-zinc-50"
+                  }`}
                 >
                   <svg
                     width="17"

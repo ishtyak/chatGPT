@@ -106,12 +106,12 @@ export default function AuthModal({ onClose, defaultMode = "signup" }: AuthModal
         {/* Social buttons */}
         <div className="flex flex-col gap-3">
           {/* Apple */}
-          <button className="flex w-full items-center justify-center gap-2.5 rounded-full bg-zinc-900 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-800 transition-colors">
+          {/* <button className="flex w-full items-center justify-center gap-2.5 rounded-full bg-zinc-900 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-800 transition-colors">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="white">
               <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.36.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.39-1.32 2.76-2.53 3.99M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25"/>
             </svg>
             Continue with Apple
-          </button>
+          </button> */}
 
           {/* Google */}
           <button
@@ -128,13 +128,13 @@ export default function AuthModal({ onClose, defaultMode = "signup" }: AuthModal
           </button>
 
           {/* Magic Link */}
-          <button className="flex w-full items-center justify-center gap-2.5 rounded-full border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+          {/* <button className="flex w-full items-center justify-center gap-2.5 rounded-full border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="4" width="20" height="16" rx="2"/>
               <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
             </svg>
             Continue with Magic Link
-          </button>
+          </button> */}
         </div>
 
         {/* OR divider */}
