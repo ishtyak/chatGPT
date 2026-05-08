@@ -3,7 +3,20 @@ import { NextRequest } from "next/server";
 // Uses Replicate's meta/musicgen model.
 // Docs: https://replicate.com/meta/musicgen
 
-const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN ?? "";
+async function getReplicateKey(): Promise<string> {
+  try {
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:4000";
+    const res = await fetch(`${backendUrl}/api/admin/api-key/replicate`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.key) return data.key as string;
+    }
+  } catch {
+    // fall through to env
+  }
+  return process.env.REPLICATE_API_TOKEN ?? "";
+}
+
 const MODEL_VERSION = "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"; // meta/musicgen stereo-large
 
 export async function POST(req: NextRequest) {
@@ -19,6 +32,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "prompt is required" }, { status: 400 });
     }
 
+    const REPLICATE_TOKEN = await getReplicateKey();
     if (!REPLICATE_TOKEN) {
       return Response.json({ error: "No Replicate API token configured." }, { status: 500 });
     }

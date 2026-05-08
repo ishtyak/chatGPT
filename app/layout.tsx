@@ -24,7 +24,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full">
-      <body className={`min-h-full flex flex-col ${montserrat.variable} font-sans`} style={{ fontFamily: "var(--font-montserrat), sans-serif" }}>
+      <body
+        className={`min-h-full flex flex-col ${montserrat.variable} font-sans`}
+        style={{ fontFamily: "var(--font-montserrat), sans-serif" }}
+        suppressHydrationWarning
+      >
         <Providers>{children}</Providers>
       </body>
     </html>
