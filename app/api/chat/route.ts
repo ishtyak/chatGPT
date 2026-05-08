@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
         messages: conversation,
         stream: true,
       }); // throws here on bad key/model
-      bodyStream = readableFromAnthropicStream(stream as unknown as AsyncIterable<{ type: string; delta?: { type: string; text?: string } }>);
+      bodyStream = readableFromAnthropicStream(stream as AsyncIterable<Anthropic.MessageStreamEvent>);
 
     } else {
       // OpenAI-compatible providers
