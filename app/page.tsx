@@ -33,6 +33,7 @@ import ExploreView from "./components/ExploreView";
 import ModelSelector from "./components/ModelSelector";
 import TemplatesView from "./components/TemplatesView";
 import UpgradeModal from "./components/UpgradeModal";
+import { useToast } from "../hooks/useToast";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -748,6 +749,7 @@ function renderUpgradePrompt() {
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { pushToast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inputValue, setInputValue] = useState("");
 
@@ -1427,6 +1429,22 @@ export default function Home() {
           })),
         }),
       });
+
+      // Detect demo-mode block (proxy returns 200 with JSON {blocked:true})
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.blocked) {
+          pushToast({
+            title: "Demo Mode",
+            description: data.message ?? "Feature not available in demo mode",
+            variant: "warning",
+          });
+          setMessages((prev) => prev.filter((m) => m.id !== aiId));
+          setIsTyping(false);
+          return;
+        }
+      }
 
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Unknown error" }));
