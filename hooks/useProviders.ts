@@ -34,7 +34,7 @@ export function useProviders() {
   return {
     providers,
     loading,
-    updateProvider: async (id: string, patch: Partial<AIProvider>) => {
+    updateProvider: async (id: string, patch: Partial<AIProvider> & { apiKey?: string }) => {
       const updated = await updateProvider(id, patch);
       setProviders((current) =>
         current.map((provider) => (provider.id === id ? updated : provider)),

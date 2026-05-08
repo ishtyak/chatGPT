@@ -36,12 +36,17 @@ const tabs: { key: TabKey; label: string }[] = [
 const rateLimitDefaults = { free: 2, pro: 20, business: 80 };
 
 const defaultSettings: AppSettings = {
+  siteName: "",
   appName: "",
   appDescription: "",
   logoUrl: "",
   primaryColor: "#4f46e5",
+  brandTagline: "",
   supportEmail: "",
   contactEmail: "",
+  contactUrl: "",
+  emailFromName: "",
+  emailFromAddress: "",
   allowRegistration: true,
   requireEmailVerification: false,
   maintenanceMode: false,

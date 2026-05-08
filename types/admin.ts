@@ -94,6 +94,7 @@ export interface UserSession {
   id: string;
   userId: string;
   device: string;
+  browser?: string;
   ipAddress: string;
   location: string;
   status: "active" | "expired" | "revoked";
@@ -186,7 +187,10 @@ export interface AuditLog {
 
 export interface AppSettings {
   siteName: string;
+  appName?: string;
+  appDescription?: string;
   supportEmail: string;
+  contactEmail?: string;
   contactUrl: string;
   maintenanceMode: boolean;
   maintenanceMessage: string;
@@ -195,13 +199,15 @@ export interface AppSettings {
   brandTagline: string;
   emailFromName: string;
   emailFromAddress: string;
+  allowRegistration?: boolean;
+  requireEmailVerification?: boolean;
   // OpenAI
-  openaiApiKey: string;
+  openaiApiKey?: string;
   // Google OAuth
-  googleClientId: string;
-  googleClientSecret: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
   // Replicate
-  replicateApiToken: string;
+  replicateApiToken?: string;
   // Auth / Stripe secrets
   nextauthSecret?: string;
   nextauthUrl?: string;

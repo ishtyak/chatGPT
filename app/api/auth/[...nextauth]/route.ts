@@ -106,7 +106,10 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
   };
 }
 
-async function handler(req: Request, ctx: { params: { nextauth: string[] } }) {
+async function handler(
+  req: Request,
+  ctx: { params: Promise<{ nextauth: string[] }> },
+) {
   const options = await buildAuthOptions();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (NextAuth as any)(req, ctx, options);
