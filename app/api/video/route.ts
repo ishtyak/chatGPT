@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const response = await fetch(
+    const response:any = await fetch(
       "https://api.replicate.com/v1/models/minimax/video-01/predictions",
       {
         method: "POST",
@@ -54,6 +54,13 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify(body),
       }
     );
+
+    const result = response.json().catch(() => { })
+
+    if (result?.message == "Feature not availiable in demo mode") {
+      alert("Feature not availiable in demo mode")
+      return ""
+    }
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));

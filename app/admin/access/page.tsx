@@ -11,6 +11,7 @@ interface LoginResponse {
     email: string;
     role: string;
   };
+  message:string
 }
 
 export default function AdminAccessPage() {
@@ -29,6 +30,10 @@ export default function AdminAccessPage() {
         email,
         password,
       });
+      if (response?.data?.message == "Feature not availiable in demo mode") {
+        alert("Feature not availiable in demo mode")
+        return
+      }
       const { token, admin } = response.data;
       sessionStorage.setItem("admin_token", token);
       sessionStorage.setItem("admin_name", admin.name);
@@ -45,7 +50,7 @@ export default function AdminAccessPage() {
     }
   };
 
-  
+
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-10 text-zinc-100">

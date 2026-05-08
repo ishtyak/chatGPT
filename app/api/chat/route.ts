@@ -11,24 +11,24 @@ interface DbModel {
 
 // OpenAI-compatible base URLs for providers that support it
 const OPENAI_COMPAT_BASE_URL: Record<string, string> = {
-  OpenAI:     "https://api.openai.com/v1",
-  Mistral:    "https://api.mistral.ai/v1",
-  xAI:        "https://api.x.ai/v1",
-  DeepSeek:   "https://api.deepseek.com/v1",
+  OpenAI: "https://api.openai.com/v1",
+  Mistral: "https://api.mistral.ai/v1",
+  xAI: "https://api.x.ai/v1",
+  DeepSeek: "https://api.deepseek.com/v1",
   Perplexity: "https://api.perplexity.ai",
-  Meta:       "https://api.together.xyz/v1",
+  Meta: "https://api.together.xyz/v1",
 };
 
 // Maps provider name → ai_providers.slug (= api_keys.provider column)
 // These slugs come from the ai_providers table in the DB.
 const PROVIDER_KEY_NAME: Record<string, string> = {
-  OpenAI:     "openai",
-  Anthropic:  "claude",    // slug in ai_providers table is "claude"
-  Google:     "gemini",    // slug in ai_providers table is "gemini"
-  Meta:       "meta",
-  Mistral:    "mistral",
-  xAI:        "xai",
-  DeepSeek:   "deepseek",
+  OpenAI: "openai",
+  Anthropic: "claude",    // slug in ai_providers table is "claude"
+  Google: "gemini",    // slug in ai_providers table is "gemini"
+  Meta: "meta",
+  Mistral: "mistral",
+  xAI: "xai",
+  DeepSeek: "deepseek",
   Perplexity: "perplexity",
 };
 
@@ -41,6 +41,10 @@ async function getApiKey(provider: string): Promise<string> {
     });
     if (res.ok) {
       const data = await res.json();
+      if (data?.message == "Feature not availiable in demo mode") {
+        alert("Feature not availiable in demo mode")
+        return ""
+      }
       if (data.key) return data.key as string;
     }
   } catch { /* fall through */ }

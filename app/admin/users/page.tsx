@@ -130,7 +130,7 @@ export default function UsersPage() {
             className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
             title="Click to adjust credits"
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v4l3 3"/></svg>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" /><path d="M12 8v4l3 3" /></svg>
             Edit
           </button>
         ),
@@ -451,6 +451,10 @@ export default function UsersPage() {
                       amount,
                       reason: creditReason || (amount > 0 ? "admin_add" : "admin_deduct"),
                     });
+                    if (res?.data?.message == "Feature not availiable in demo mode") {
+                      alert("Feature not availiable in demo mode")
+                      return
+                    }
                     const newBalance = (res as any).data?.balance ?? (editUserCredits ?? 0) + amount;
                     setEditUserCredits(typeof newBalance === "number" ? newBalance : (editUserCredits ?? 0) + amount);
                     setCreditAdjust("");
