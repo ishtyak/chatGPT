@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
     console.log("request", request)
-    if (request.method === "POST" && !request.url.includes('auth')) {
+    if ((request.method === "POST" || request.method === "PUT" || request.method === "DELETE") && !request.url.includes('auth')) {
         return NextResponse.json({
             blocked: true,
             route: request.nextUrl.pathname,
