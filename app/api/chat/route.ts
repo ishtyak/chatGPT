@@ -42,7 +42,7 @@ async function getApiKey(provider: string): Promise<string> {
     if (res.ok) {
       const data = await res.json();
       if (data?.message == "Feature not availiable in demo mode") {
-        alert("Feature not availiable in demo mode")
+       throw new Error("Feature not available in demo mode")
         return ""
       }
       if (data.key) return data.key as string;

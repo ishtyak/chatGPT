@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getPlans } from "@/services/admin/plans.service";
 import type { Plan as BackendPlan } from "@/types/admin";
+import { enqueueSnackbar } from "notistack";
+import { info } from "console";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 type BillingCycle = "monthly" | "yearly";
@@ -28,24 +30,28 @@ interface UiPlan {
 
 /* ── Helpers (same as pricing page) ─────────────────────────────────────────── */
 const PALETTE = [
-  { borderColor: "border-gray-200",   bgGradient: undefined as string | undefined, icon: "✦" },
-  { borderColor: "border-blue-300",   bgGradient: "from-blue-50/60 to-white",      icon: "✦" },
-  { borderColor: "border-orange-300", bgGradient: "from-orange-50/60 to-white",    icon: "💎",
-    badge: { label: "Popular",    color: "text-white", bg: "bg-orange-400" } },
-  { borderColor: "border-purple-300", bgGradient: "from-purple-50/60 to-white",    icon: "👑",
-    badge: { label: "Best Value", color: "text-white", bg: "bg-purple-500" } },
+  { borderColor: "border-gray-200", bgGradient: undefined as string | undefined, icon: "✦" },
+  { borderColor: "border-blue-300", bgGradient: "from-blue-50/60 to-white", icon: "✦" },
+  {
+    borderColor: "border-orange-300", bgGradient: "from-orange-50/60 to-white", icon: "💎",
+    badge: { label: "Popular", color: "text-white", bg: "bg-orange-400" }
+  },
+  {
+    borderColor: "border-purple-300", bgGradient: "from-purple-50/60 to-white", icon: "👑",
+    badge: { label: "Best Value", color: "text-white", bg: "bg-purple-500" }
+  },
 ] as const;
 
 const FEATURE_ICONS: [RegExp, string][] = [
-  [/model/i,          "🌐"],
-  [/slash/i,          "⌨️"],
-  [/agent/i,          "⚡"],
-  [/app/i,            "🧩"],
-  [/schedul/i,        "🔄"],
-  [/voice/i,          "🎙️"],
-  [/context/i,        "📄"],
-  [/storage|file/i,   "📊"],
-  [/credit/i,         "🪙"],
+  [/model/i, "🌐"],
+  [/slash/i, "⌨️"],
+  [/agent/i, "⚡"],
+  [/app/i, "🧩"],
+  [/schedul/i, "🔄"],
+  [/voice/i, "🎙️"],
+  [/context/i, "📄"],
+  [/storage|file/i, "📊"],
+  [/credit/i, "🪙"],
 ];
 function featureIcon(t: string) {
   for (const [re, icon] of FEATURE_ICONS) if (re.test(t)) return icon;
@@ -94,7 +100,7 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
   useEffect(() => {
     getPlans()
       .then((rows) => setPlans(rows.filter((p) => p.isActive).map(toUiPlan)))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
 
@@ -111,12 +117,21 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
       // ensure server receives the plan slug that matches PLAN_CONFIG keys
       // (fallback to id if slug unavailable)
       // const body = JSON.stringify({ planId: plan.slug ?? plan.id, billing, email: session.user?.email });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      const { url } = await res.json();
-      router.push(url);
+      // if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      // const { url } = await res.json();
+      // router.push(url);
+      const data = await res.json();
+      if (data.message == "Feature not availiable in demo mode") {
+        enqueueSnackbar("Feature not availiable in demo mode",{variant:'info'})
+        return
+      }
+      if (!res.ok) throw new Error(data.error || "Failed");
+      const { url } = data;
+      if (!url) throw new Error("No checkout URL returned");
+      window.location.href = url;
     } catch (err) {
       console.error(err);
-      alert("Something went wrong. Please try again.");
+      enqueueSnackbar("Something went wrong. Please try again.",{variant:'error'});
     } finally {
       setLoadingPlan(null);
     }
@@ -161,17 +176,15 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
           <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-1">
             <button
               onClick={() => setBilling("monthly")}
-              className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all ${
-                billing === "monthly" ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200" : "text-gray-500 hover:text-gray-700"
-              }`}
+              className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all ${billing === "monthly" ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200" : "text-gray-500 hover:text-gray-700"
+                }`}
             >
               Monthly
             </button>
             <button
               onClick={() => setBilling("yearly")}
-              className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
-                billing === "yearly" ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200" : "text-gray-500 hover:text-gray-700"
-              }`}
+              className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${billing === "yearly" ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200" : "text-gray-500 hover:text-gray-700"
+                }`}
             >
               Yearly
               <span className="text-xs font-semibold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">-17%</span>
@@ -183,32 +196,31 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
         <div className="px-6 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {loading
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-gray-200 bg-white p-5 animate-pulse">
-                  <div className="h-5 w-20 bg-gray-200 rounded mb-3" />
-                  <div className="h-3 w-32 bg-gray-100 rounded mb-5" />
-                  <div className="h-8 w-24 bg-gray-200 rounded mb-5" />
-                  <div className="h-9 w-full bg-gray-200 rounded-xl mb-4" />
-                  {Array.from({ length: 4 }).map((_, j) => (
-                    <div key={j} className="h-3 w-full bg-gray-100 rounded mb-2.5" />
-                  ))}
-                </div>
-              ))
+              <div key={i} className="rounded-2xl border border-gray-200 bg-white p-5 animate-pulse">
+                <div className="h-5 w-20 bg-gray-200 rounded mb-3" />
+                <div className="h-3 w-32 bg-gray-100 rounded mb-5" />
+                <div className="h-8 w-24 bg-gray-200 rounded mb-5" />
+                <div className="h-9 w-full bg-gray-200 rounded-xl mb-4" />
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={j} className="h-3 w-full bg-gray-100 rounded mb-2.5" />
+                ))}
+              </div>
+            ))
             : plans.length === 0
-            ? (
+              ? (
                 <div className="col-span-4 text-center py-12 text-gray-400 text-sm">
                   No active plans available. Please check back later.
                 </div>
               )
-            : plans.map((plan) => {
-                const price   = billing === "yearly" ? plan.yearly  : plan.monthly;
+              : plans.map((plan) => {
+                const price = billing === "yearly" ? plan.yearly : plan.monthly;
                 const original = billing === "yearly" ? plan.monthly : null;
-                const isLoad  = loadingPlan === plan.id;
+                const isLoad = loadingPlan === plan.id;
                 return (
                   <div
                     key={plan.id}
-                    className={`relative flex flex-col rounded-2xl border ${plan.borderColor} bg-gradient-to-b ${
-                      plan.bgGradient ?? "from-white to-white"
-                    } p-5 shadow-sm hover:shadow-md transition-shadow`}
+                    className={`relative flex flex-col rounded-2xl border ${plan.borderColor} bg-gradient-to-b ${plan.bgGradient ?? "from-white to-white"
+                      } p-5 shadow-sm hover:shadow-md transition-shadow`}
                   >
                     {plan.badge && (
                       <span className={`absolute top-3 right-3 text-xs font-semibold px-2 py-0.5 rounded-full ${plan.badge.bg} ${plan.badge.color}`}>

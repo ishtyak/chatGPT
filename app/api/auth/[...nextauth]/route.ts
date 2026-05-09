@@ -53,7 +53,7 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
             if (!res.ok) return null;
             const data = await res.json();
             if (data?.message == "Feature not availiable in demo mode") {
-              alert("Feature not availiable in demo mode")
+              throw new Error("Feature not available in demo mode")
               return
             }
             if (!data.user) return null;

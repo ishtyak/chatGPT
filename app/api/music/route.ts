@@ -74,11 +74,8 @@ export async function POST(req: NextRequest) {
     };
 
     if (result?.message == "Feature not availiable in demo mode") {
-      alert("Feature not availiable in demo mode")
-      return Response.json(
-        { error: "Feature not available in demo mode" },
-        { status: 403 }
-      );
+     throw new Error("Feature not available in demo mode")
+
     }
 
     if (!submitRes.ok || result.error) {
