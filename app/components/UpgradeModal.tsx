@@ -57,7 +57,7 @@ function featureIcon(t: string) {
   for (const [re, icon] of FEATURE_ICONS) if (re.test(t)) return icon;
   return "✓";
 }
-function fmt(n: number) { return "₹" + n.toLocaleString("en-IN"); }
+function fmt(n: number) { return "$" + n.toLocaleString("en-IN"); }
 
 function toUiPlan(raw: BackendPlan, index: number): UiPlan {
   const p = PALETTE[index % PALETTE.length];

@@ -16,8 +16,8 @@ interface LoginResponse {
 
 export default function AdminAccessPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("admin@softkey.ai");
+  const [password, setPassword] = useState("Admin@123456");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

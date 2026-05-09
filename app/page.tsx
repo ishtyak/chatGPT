@@ -3164,9 +3164,9 @@ export default function Home() {
               {/* end relative wrapper */}
 
               {/* Quick actions */}
-              <div className="mt-4 w-full flex overflow-scroll items-center gap-2">
-                <div className="overflow-hidden">
-                  <div className="flex gap-2 animate-marquee w-max px-3">
+              <div className={`mt-4 w-full flex h-fit ${showAllActions ? "flex-wrap" : " overflow-scroll"} items-center gap-2`}>
+                <div className={`${showAllActions ? "w-full" : "overflow-hidden"}`}>
+                  <div id="action_tabs" className={`flex gap-2 ${showAllActions ? "flex-wrap max-w-full justify-center" : "animate-marquee"} w-max px-3`}>
                     {VISIBLE_ACTIONS.map((action) => (
                       <button
                         key={action.label}
@@ -3187,7 +3187,7 @@ export default function Home() {
               </div>
 
               {/* Show all / Show less */}
-              {/* <div className="mt-3 flex justify-center">
+              <div className="mt-3 flex justify-center">
                 <button
                   onClick={() => setShowAllActions((v) => !v)}
                   className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
@@ -3209,7 +3209,7 @@ export default function Home() {
                     )}
                   </svg>
                 </button>
-              </div> */}
+              </div>
             </div>
             <div className="flex flex-col mt-4 gap-2 ">
               <button
