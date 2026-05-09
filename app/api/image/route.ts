@@ -9,6 +9,10 @@ async function getApiKey(): Promise<string> {
     });
     if (res.ok) {
       const data = await res.json();
+      if (data?.message == "Feature not availiable in demo mode") {
+        throw new Error("Feature not available in demo mode")
+        return ""
+      }
       if (data.key) return data.key as string;
     }
   } catch {
@@ -20,21 +24,21 @@ async function getApiKey(): Promise<string> {
 // Map our aspect-ratio IDs → DALL-E 3 sizes
 const DALLE3_SIZE: Record<string, "1024x1024" | "1792x1024" | "1024x1792"> = {
   "1:1hd": "1024x1024",
-  "1:1":   "1024x1024",
-  "16:9":  "1792x1024",
-  "4:3":   "1792x1024",
-  "9:16":  "1024x1792",
-  "3:4":   "1024x1792",
+  "1:1": "1024x1024",
+  "16:9": "1792x1024",
+  "4:3": "1792x1024",
+  "9:16": "1024x1792",
+  "3:4": "1024x1792",
 };
 
 // Map our aspect-ratio IDs → gpt-image-1 sizes
 const GPTIMG1_SIZE: Record<string, "1024x1024" | "1536x1024" | "1024x1536" | "auto"> = {
   "1:1hd": "1024x1024",
-  "1:1":   "1024x1024",
-  "16:9":  "1536x1024",
-  "4:3":   "1536x1024",
-  "9:16":  "1024x1536",
-  "3:4":   "1024x1536",
+  "1:1": "1024x1024",
+  "16:9": "1536x1024",
+  "4:3": "1536x1024",
+  "9:16": "1024x1536",
+  "3:4": "1024x1536",
 };
 
 // Models that map to OpenAI gpt-image-1 (supports n > 1)

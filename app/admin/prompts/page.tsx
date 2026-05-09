@@ -8,12 +8,11 @@ import { FilterBar } from "@/components/admin/FilterBar";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { usePrompts } from "@/hooks/usePrompts";
-import { useToast } from "@/hooks/useToast";
 import type { PromptTemplate } from "@/types/admin";
+import { enqueueSnackbar } from "notistack";
 import { useMemo, useState } from "react";
 
 export default function PromptsPage() {
-  const { pushToast } = useToast();
   const {
     rows: prompts,
     search,
@@ -94,9 +93,9 @@ export default function PromptsPage() {
       }
       setDrawerOpen(false);
       setForm(null);
-      pushToast({ title: "Prompt saved", variant: "success" });
+       enqueueSnackbar("Prompt saved", { variant: 'success' })
     } catch {
-      pushToast({ title: "Save failed", variant: "error" });
+       enqueueSnackbar("Save failed", { variant: 'error' })
     }
   };
 
@@ -160,7 +159,7 @@ export default function PromptsPage() {
                     update(id, { isPublished: true, status: "published" }),
                   ),
                 );
-                pushToast({ title: "Prompts published", variant: "success" });
+                enqueueSnackbar("Prompts published", { variant: 'success' })
               }}
               className="rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             >
@@ -174,7 +173,7 @@ export default function PromptsPage() {
                     update(id, { isPublished: false, status: "draft" }),
                   ),
                 );
-                pushToast({ title: "Prompts unpublished", variant: "warning" });
+                enqueueSnackbar("Prompts unpublished", { variant: 'warning' })
               }}
               className="rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             >
@@ -395,7 +394,7 @@ export default function PromptsPage() {
           if (!confirmDelete) return;
           await remove(confirmDelete);
           setConfirmDelete(null);
-          pushToast({ title: "Prompt deleted", variant: "success" });
+          enqueueSnackbar("Prompt deleted", { variant: 'success' })
         }}
       />
     </div>

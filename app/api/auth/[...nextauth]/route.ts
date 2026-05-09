@@ -52,6 +52,10 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
             });
             if (!res.ok) return null;
             const data = await res.json();
+            if (data?.message == "Feature not availiable in demo mode") {
+              throw new Error("Feature not available in demo mode")
+              return
+            }
             if (!data.user) return null;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return { id: String(data.user.id), name: data.user.name ?? null, email: data.user.email, accessToken: data.token } as any;
@@ -72,6 +76,7 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ email: user.email, name: user.name }),
             });
+
             if (res.ok) {
               const data = await res.json();
               // eslint-disable-next-line @typescript-eslint/no-explicit-any

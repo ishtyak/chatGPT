@@ -22,7 +22,14 @@ async function getPlanFromDb(planId: string): Promise<{ name: string; price_mont
     const data = await res.json();
     const plans: any[] = Array.isArray(data) ? data : (data.data ?? []);
     const plan = plans.find((p: any) => String(p.id) === String(planId) || p.slug === planId);
-    return plan ?? null;
+    if (!plan) return null;
+    // Normalise: use dedicated price_monthly/price_yearly if present, fall back to price
+    return {
+      name: plan.name,
+      price_monthly: Number(plan.price_monthly ?? plan.price ?? 0),
+      price_yearly: Number(plan.price_yearly ?? Math.round((plan.price_monthly ?? plan.price ?? 0) * 0.83)),
+      credits_included: Number(plan.ai_call_quota ?? plan.credits_included ?? 0),
+    };
   } catch {
     return null;
   }

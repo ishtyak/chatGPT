@@ -70,7 +70,13 @@ export async function POST(req: NextRequest) {
       output?: string | string[] | null;
       error?: string;
       urls?: { get?: string };
+      message?: string
     };
+
+    if (result?.message == "Feature not availiable in demo mode") {
+     throw new Error("Feature not available in demo mode")
+
+    }
 
     if (!submitRes.ok || result.error) {
       return Response.json({ error: result.error ?? "Music generation failed" }, { status: 500 });

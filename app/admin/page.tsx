@@ -8,8 +8,8 @@ import { useAdminStats } from "@/hooks/useAdminStats";
 import { useAuditLogs } from "@/hooks/useAuditLogs";
 import { useProviders } from "@/hooks/useProviders";
 import { useSettings } from "@/hooks/useSettings";
-import { useToast } from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
+import { enqueueSnackbar } from "notistack";
 import { useMemo } from "react";
 import {
   Area,
@@ -33,7 +33,6 @@ const usageWidthClass = (usage: number, limit: number) => {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const { pushToast } = useToast();
   const { stats, charts, loading } = useAdminStats();
   const { rows: auditRows, loading: auditLoading } = useAuditLogs(10);
   const { providers, loading: providersLoading } = useProviders();
@@ -100,11 +99,7 @@ export default function AdminDashboardPage() {
           title="30-day user growth"
           description="Growth curve for registrations and active community momentum."
           onExport={() =>
-            pushToast({
-              title: "Export ready",
-              description: "User growth CSV exported.",
-              variant: "success",
-            })
+            enqueueSnackbar("User growth CSV exported.", { variant: 'success' })
           }
         >
           <ResponsiveContainer
@@ -175,13 +170,8 @@ export default function AdminDashboardPage() {
               onClick={async () => {
                 const next = !appSettings?.maintenanceMode;
                 await saveSettings({ maintenanceMode: next });
-                pushToast({
-                  title: "Maintenance updated",
-                  description: next
-                    ? "Maintenance mode enabled."
-                    : "Maintenance mode disabled.",
-                  variant: next ? "warning" : "success",
-                });
+                const message = next ? "Maintenance mode enabled." : "Maintenance mode disabled."
+                enqueueSnackbar(message, { variant: next ?'warning' : 'success' })
               }}
               className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-left text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20"
             >
@@ -239,39 +229,39 @@ export default function AdminDashboardPage() {
             {providersLoading
               ? null
               : providers.map((provider) => {
-                  const percent = Math.min(
-                    100,
-                    Math.round(
-                      (provider.monthlyUsage / provider.monthlyLimit) * 100,
-                    ),
-                  );
-                  return (
-                    <div
-                      key={provider.id}
-                      className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-900"
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                          {provider.name}
-                        </p>
-                        <StatusBadge status={provider.status} />
-                      </div>
-                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {provider.healthMessage}
+                const percent = Math.min(
+                  100,
+                  Math.round(
+                    (provider.monthlyUsage / provider.monthlyLimit) * 100,
+                  ),
+                );
+                return (
+                  <div
+                    key={provider.id}
+                    className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-900"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        {provider.name}
                       </p>
-                      <div className="mt-3 h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
-                        <div
-                          className={`h-2 rounded-full bg-indigo-600 ${usageWidthClass(provider.monthlyUsage, provider.monthlyLimit)}`}
-                        />
-                      </div>
-                      <p className="mt-2 text-[11px] text-zinc-500">
-                        {provider.monthlyUsage?.toLocaleString()} /{" "}
-                        {provider.monthlyLimit?.toLocaleString()} calls (
-                        {percent}%)
-                      </p>
+                      <StatusBadge status={provider.status} />
                     </div>
-                  );
-                })}
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      {provider.healthMessage}
+                    </p>
+                    <div className="mt-3 h-2 rounded-full bg-zinc-200 dark:bg-zinc-800">
+                      <div
+                        className={`h-2 rounded-full bg-indigo-600 ${usageWidthClass(provider.monthlyUsage, provider.monthlyLimit)}`}
+                      />
+                    </div>
+                    <p className="mt-2 text-[11px] text-zinc-500">
+                      {provider.monthlyUsage?.toLocaleString()} /{" "}
+                      {provider.monthlyLimit?.toLocaleString()} calls (
+                      {percent}%)
+                    </p>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>

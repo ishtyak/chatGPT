@@ -33,6 +33,7 @@ import ExploreView from "./components/ExploreView";
 import ModelSelector from "./components/ModelSelector";
 import TemplatesView from "./components/TemplatesView";
 import UpgradeModal from "./components/UpgradeModal";
+import { enqueueSnackbar } from "notistack";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -243,6 +244,7 @@ function IconMic() {
     </svg>
   );
 }
+
 function IconWaveform() {
   return (
     <svg
@@ -259,6 +261,29 @@ function IconWaveform() {
     </svg>
   );
 }
+
+function IconPushChat() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* circle */}
+      <circle cx="12" cy="12" r="9" />
+
+      {/* arrow */}
+      <path d="M12 16V8" />
+      <path d="M8.5 11.5L12 8l3.5 3.5" />
+    </svg>
+  );
+}
+
 function IconAnthropicA() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -693,13 +718,12 @@ function NavItem({
     <button
       onClick={!disabled ? onClick : undefined}
       disabled={disabled}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-        disabled
-          ? "cursor-not-allowed opacity-50 bg-transparent text-zinc-400"
-          : active
-            ? "bg-zinc-100 text-zinc-900"
-            : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-      }`}
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${disabled
+        ? "cursor-not-allowed opacity-50 bg-transparent text-zinc-400"
+        : active
+          ? "bg-zinc-100 text-zinc-900"
+          : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+        }`}
     >
       {icon}
       <span>{label}</span>
@@ -735,6 +759,10 @@ export default function Home() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const accessToken = (session as any)?.accessToken as string | undefined;
   const [authModal, setAuthModal] = useState<"signup" | "signin" | null>(null);
+  const [demoUser, setDemoUser] = useState({
+    email: 'demo@softkey.in',
+    pass: '12345678'
+  })
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState("gemini-2.5-flash");
   const [availableModels, setAvailableModels] = useState<{ id: string; name: string; icon: React.ReactNode }[]>([]);
@@ -745,7 +773,7 @@ export default function Home() {
       .then((data) => {
         if (data?.models) setAvailableModels(data.models);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // ── Chat state ───────────────────────────────────────────────────────────
@@ -775,7 +803,7 @@ export default function Home() {
     if (isLoggedIn && walletCredits !== null && walletCredits <= 0) {
       setUpgradeModalOpen(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletCredits]);
 
   const [isTyping, setIsTyping] = useState(false);
@@ -973,9 +1001,9 @@ export default function Home() {
             prev.map((m) =>
               m.id === messageId
                 ? {
-                    ...m,
-                    content: `__VIDEO_ERROR__:${data.error ?? "Generation failed"}`,
-                  }
+                  ...m,
+                  content: `__VIDEO_ERROR__:${data.error ?? "Generation failed"}`,
+                }
                 : m,
             ),
           );
@@ -1058,14 +1086,18 @@ export default function Home() {
           }),
         });
         const data = await res.json();
+        if (data?.message == "Feature not availiable in demo mode") {
+          alert("Feature not availiable in demo mode")
+          return
+        }
         if (!res.ok) {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === aiId
                 ? {
-                    ...m,
-                    content: `Error: ${data.error ?? "Image generation failed"}`,
-                  }
+                  ...m,
+                  content: `Error: ${data.error ?? "Image generation failed"}`,
+                }
                 : m,
             ),
           );
@@ -1140,9 +1172,9 @@ export default function Home() {
             prev.map((m) =>
               m.id === aiId
                 ? {
-                    ...m,
-                    content: `__VIDEO_ERROR__:${data.error ?? "Video generation failed"}`,
-                  }
+                  ...m,
+                  content: `__VIDEO_ERROR__:${data.error ?? "Video generation failed"}`,
+                }
                 : m,
             ),
           );
@@ -1212,9 +1244,9 @@ export default function Home() {
           prev.map((m) =>
             m.id === aiId
               ? {
-                  ...m,
-                  content: "__VIDEO_ERROR__:Network error. Please try again.",
-                }
+                ...m,
+                content: "__VIDEO_ERROR__:Network error. Please try again.",
+              }
               : m,
           ),
         );
@@ -1241,9 +1273,9 @@ export default function Home() {
             prev.map((m) =>
               m.id === aiId
                 ? {
-                    ...m,
-                    content: `Error: ${data.error ?? "Music generation failed"}`,
-                  }
+                  ...m,
+                  content: `Error: ${data.error ?? "Music generation failed"}`,
+                }
                 : m,
             ),
           );
@@ -1295,9 +1327,9 @@ export default function Home() {
           prev.map((m) =>
             m.id === aiId
               ? {
-                  ...m,
-                  content: "Please attach an image to edit using the + button.",
-                }
+                ...m,
+                content: "Please attach an image to edit using the + button.",
+              }
               : m,
           ),
         );
@@ -1326,9 +1358,9 @@ export default function Home() {
             prev.map((m) =>
               m.id === aiId
                 ? {
-                    ...m,
-                    content: `Error: ${data.error ?? "Image editing failed"}`,
-                  }
+                  ...m,
+                  content: `Error: ${data.error ?? "Image editing failed"}`,
+                }
                 : m,
             ),
           );
@@ -1397,15 +1429,27 @@ export default function Home() {
         }),
       });
 
+      // Detect demo-mode block (proxy returns 200 with JSON {blocked:true})
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.blocked) {
+          enqueueSnackbar("Feature not available in demo mode", { variant: 'info' })
+          setMessages((prev) => prev.filter((m) => m.id !== aiId));
+          setIsTyping(false);
+          return;
+        }
+      }
+
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: "Unknown error" }));
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiId
               ? {
-                  ...m,
-                  content: `Error: ${err.error ?? "Something went wrong"}`,
-                }
+                ...m,
+                content: `Error: ${err.error ?? "Something went wrong"}`,
+              }
               : m,
           ),
         );
@@ -1617,7 +1661,7 @@ export default function Home() {
       void fetchRecentChats(accessToken);
       void fetchWalletCredits(accessToken);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, accessToken]);
 
   // Deduct 1 credit when isTyping goes from true → false after a request
@@ -1636,10 +1680,10 @@ export default function Home() {
             if (data.balance <= 0) setUpgradeModalOpen(true);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
     isTypingPrevRef.current = isTyping;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTyping]);
 
   // ── Search helper ─────────────────────────────────────────────────────────
@@ -1987,11 +2031,10 @@ export default function Home() {
                     setPlusMenuOpen(false);
                     setPlusMenuMore(false);
                   }}
-                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-all text-left ${
-                    activePanelRef.current === action.panel && action.panel
-                      ? `${action.text} ${action.border} ${action.bg} ring-1 ring-current`
-                      : `${action.text} ${action.border} ${action.bg} hover:opacity-80`
-                  }`}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-all text-left ${activePanelRef.current === action.panel && action.panel
+                    ? `${action.text} ${action.border} ${action.bg} ring-1 ring-current`
+                    : `${action.text} ${action.border} ${action.bg} hover:opacity-80`
+                    }`}
                 >
                   <span className={`inline-flex shrink-0 ${action.text}`}>
                     {action.icon}
@@ -2432,7 +2475,7 @@ export default function Home() {
 
   const VISIBLE_ACTIONS = showAllActions
     ? ALL_ACTIONS
-    : ALL_ACTIONS.slice(0, 7);
+    : ALL_ACTIONS;
 
   function handleActionClick(action: ActionItem) {
     if (action.panel) {
@@ -2467,9 +2510,8 @@ export default function Home() {
 
       {/* ── Sidebar ── */}
       <aside
-        className={`flex flex-col bg-white border-r border-zinc-200 transition-all duration-300 ${
-          sidebarOpen ? "w-64 min-w-[256px]" : "w-0 overflow-hidden"
-        }`}
+        className={`flex flex-col bg-white border-r border-zinc-200 transition-all duration-300 ${sidebarOpen ? "w-64 min-w-[256px]" : "w-0 overflow-hidden"
+          }`}
       >
         {/* Sidebar header */}
         <div className="flex items-center justify-between px-4 pt-5 pb-3">
@@ -2568,11 +2610,10 @@ export default function Home() {
                       <div key={chat.id} className="relative group/item">
                         {/* Chat row */}
                         <div
-                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer ${
-                            conversationId === chat.id
-                              ? "bg-zinc-100 text-zinc-900"
-                              : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-                          }`}
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer ${conversationId === chat.id
+                            ? "bg-zinc-100 text-zinc-900"
+                            : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+                            }`}
                         >
                           {/* Title (clickable) */}
                           <button
@@ -2699,7 +2740,7 @@ export default function Home() {
               <div className="rounded-xl bg-zinc-50 border border-zinc-100 px-3 py-2">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-medium text-zinc-500 flex items-center gap-1">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" /></svg>
                     Credits
                   </span>
                   <span className={`text-sm font-bold tabular-nums ${walletCredits !== null && walletCredits <= 2 ? "text-red-600" : "text-zinc-800"}`}>
@@ -3077,7 +3118,7 @@ export default function Home() {
                             : "Click + to upload image, then describe edit..."
                           : activePanel
                             ? ALL_ACTIONS.find((a) => a.panel === activePanel)
-                                ?.label
+                              ?.label
                               ? `Describe your ${ALL_ACTIONS.find((a) => a.panel === activePanel)!.label.toLowerCase()}...`
                               : "Ask anything..."
                             : "Ask anything..."
@@ -3088,47 +3129,61 @@ export default function Home() {
                     onClick={startDictation}
                     title={isRecording ? "Stop recording" : "Dictate"}
                     disabled={chatAccessBlocked}
-                    className={`shrink-0 transition-colors ${
-                      chatAccessBlocked
-                        ? "text-zinc-200 cursor-not-allowed"
-                        : isRecording
-                          ? "text-red-500 animate-pulse"
-                          : "text-zinc-400 hover:text-zinc-600"
-                    }`}
+                    className={`shrink-0 transition-colors ${chatAccessBlocked
+                      ? "text-zinc-200 cursor-not-allowed"
+                      : isRecording
+                        ? "text-red-500 animate-pulse"
+                        : "text-zinc-400 hover:text-zinc-600"
+                      }`}
                   >
                     <IconMic />
                   </button>
-                  <button
-                    onClick={handleSend}
-                    disabled={chatAccessBlocked || !inputValue.trim()}
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                      isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
-                    }`}
-                  >
-                    <IconWaveform />
-                  </button>
+                  {
+                    // inputValue ? 
+                    <button
+                      onClick={handleSend}
+                      disabled={chatAccessBlocked || !inputValue.trim()}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full  bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
+                        }`}
+                    >
+                      <IconPushChat />
+                    </button>
+                    //  :
+                    //   <button
+                    //     onClick={handleSend}
+                    //     disabled={chatAccessBlocked || !inputValue.trim()}
+                    //     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
+                    //       }`}
+                    //   >
+                    //     <IconWaveform />
+                    //   </button>
+                  }
+
                 </div>
               </div>
               {/* end relative wrapper */}
 
               {/* Quick actions */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                {VISIBLE_ACTIONS.map((action) => (
-                  <button
-                    key={action.label}
-                    onClick={() => handleActionClick(action)}
-                    className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all ${
-                      action.panel && activePanel === action.panel
-                        ? `${action.text} ${action.border} ${action.bg} ring-1 ring-current ring-offset-0`
-                        : `${action.text} ${action.border} ${action.bg} hover:opacity-80`
-                    }`}
-                  >
-                    <span className={`inline-flex ${action.text}`}>
-                      {action.icon}
-                    </span>
-                    {action.label}
-                  </button>
-                ))}
+              <div className={`mt-4 w-full flex h-fit ${showAllActions ? "flex-wrap" : " overflow-scroll"} items-center gap-2`}>
+                <div className={`${showAllActions ? "w-full" : "overflow-hidden"}`}>
+                  <div id="action_tabs" className={`flex gap-2 ${showAllActions ? "flex-wrap max-w-full justify-center" : "animate-marquee"} w-max px-3`}>
+                    {VISIBLE_ACTIONS.map((action) => (
+                      <button
+                        key={action.label}
+                        onClick={() => handleActionClick(action)}
+                        className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all ${action.panel && activePanel === action.panel
+                          ? `${action.text} ${action.border} ${action.bg} ring-1 ring-current ring-offset-0`
+                          : `${action.text} ${action.border} ${action.bg} hover:opacity-80`
+                          }`}
+                      >
+                        <span className={`inline-flex ${action.text}`}>
+                          {action.icon}
+                        </span>
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Show all / Show less */}
@@ -3156,9 +3211,23 @@ export default function Home() {
                 </button>
               </div>
             </div>
+            <div className="flex flex-col mt-4 gap-2 ">
+              <button
+                onClick={() => {
+                  setAuthModal("signin")
+                }}
+                className="text-black font-bold bg-white rounded-full border p-2 px-3">
+                Try Demo Login
+              </button>
+
+              {/* <button className="bg-black text-white p-2 rounded-md w-full">
+                Continue with email
+              </button> */}
+
+            </div>
 
             {/* Sign-in CTA */}
-            {!isLoggedIn && status !== "loading" && (
+            {/* {!isLoggedIn && status !== "loading" && (
               <div className="mt-10 flex flex-col items-center gap-3">
                 <p className="text-sm text-zinc-400">
                   Sign in to save your conversations
@@ -3179,6 +3248,8 @@ export default function Home() {
                 </div>
               </div>
             )}
+              */}
+
           </main>
         ) : (
           /* ── Chat view ── */
@@ -3250,11 +3321,10 @@ export default function Home() {
                         <button
                           onClick={() => handleLike(msg.id)}
                           title={likedId === msg.id ? "Liked" : "Good response"}
-                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-                            likedId === msg.id
-                              ? "text-green-500 bg-green-50"
-                              : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-                          }`}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${likedId === msg.id
+                            ? "text-green-500 bg-green-50"
+                            : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                            }`}
                         >
                           <svg
                             width="14"
@@ -3275,11 +3345,10 @@ export default function Home() {
                           title={
                             dislikedId === msg.id ? "Disliked" : "Bad response"
                           }
-                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-                            dislikedId === msg.id
-                              ? "text-red-500 bg-red-50"
-                              : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-                          }`}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${dislikedId === msg.id
+                            ? "text-red-500 bg-red-50"
+                            : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                            }`}
                         >
                           <svg
                             width="14"
@@ -3300,11 +3369,10 @@ export default function Home() {
                         <button
                           onClick={() => handleShareMsg(msg.id, msg.content)}
                           title={sharedMsgId === msg.id ? "Copied!" : "Share"}
-                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-                            sharedMsgId === msg.id
-                              ? "text-blue-500 bg-blue-50"
-                              : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-                          }`}
+                          className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${sharedMsgId === msg.id
+                            ? "text-blue-500 bg-blue-50"
+                            : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                            }`}
                         >
                           {sharedMsgId === msg.id ? (
                             <svg
@@ -3343,11 +3411,10 @@ export default function Home() {
                               onClick={() => handleRegenerate(msgIndex)}
                               title="Regenerate"
                               disabled={isTyping}
-                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-                                isTyping
-                                  ? "text-zinc-200 cursor-not-allowed"
-                                  : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-                              } ${isLast ? "" : "opacity-0 group-hover:opacity-100"}`}
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${isTyping
+                                ? "text-zinc-200 cursor-not-allowed"
+                                : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                                } ${isLast ? "" : "opacity-0 group-hover:opacity-100"}`}
                             >
                               <svg
                                 width="14"
@@ -3492,29 +3559,29 @@ export default function Home() {
                             : "Click + to upload image, then describe edit..."
                           : activePanel
                             ? ((
-                                {
-                                  image: "Describe your image...",
-                                  video: "Describe your video...",
-                                  upscale: "Describe the upscale...",
-                                  music: "Describe your music...",
-                                  sound: "Describe the sound...",
-                                  speech: "Enter text to convert to speech...",
-                                  voice: "Describe your voice...",
-                                  code: "Describe your code task...",
-                                  visual:
-                                    "Describe what to analyze visually...",
-                                  transcribe: "Paste audio URL or describe...",
-                                  search: "What would you like to search?",
-                                  summarize:
-                                    "Paste text or URL to summarize...",
-                                  detect: "What would you like to detect?",
-                                  plagiarism:
-                                    "Paste text to check for plagiarism...",
-                                  humanize: "Paste AI text to humanize...",
-                                  compare: "Describe what to compare...",
-                                  document: "Describe your document task...",
-                                } as Record<string, string>
-                              )[activePanel] ??
+                              {
+                                image: "Describe your image...",
+                                video: "Describe your video...",
+                                upscale: "Describe the upscale...",
+                                music: "Describe your music...",
+                                sound: "Describe the sound...",
+                                speech: "Enter text to convert to speech...",
+                                voice: "Describe your voice...",
+                                code: "Describe your code task...",
+                                visual:
+                                  "Describe what to analyze visually...",
+                                transcribe: "Paste audio URL or describe...",
+                                search: "What would you like to search?",
+                                summarize:
+                                  "Paste text or URL to summarize...",
+                                detect: "What would you like to detect?",
+                                plagiarism:
+                                  "Paste text to check for plagiarism...",
+                                humanize: "Paste AI text to humanize...",
+                                compare: "Describe what to compare...",
+                                document: "Describe your document task...",
+                              } as Record<string, string>
+                            )[activePanel] ??
                               `Describe your ${activePanel}...`)
                             : "Ask anything..."
                     }
@@ -3525,29 +3592,39 @@ export default function Home() {
                     onClick={startDictation}
                     title={isRecording ? "Stop recording" : "Dictate"}
                     disabled={chatAccessBlocked}
-                    className={`shrink-0 transition-colors ${
-                      chatAccessBlocked
-                        ? "text-zinc-200 cursor-not-allowed"
-                        : isRecording
-                          ? "text-red-500 animate-pulse"
-                          : "text-zinc-400 hover:text-zinc-600"
-                    }`}
+                    className={`shrink-0 transition-colors ${chatAccessBlocked
+                      ? "text-zinc-200 cursor-not-allowed"
+                      : isRecording
+                        ? "text-red-500 animate-pulse"
+                        : "text-zinc-400 hover:text-zinc-600"
+                      }`}
                   >
                     <IconMic />
                   </button>
                   <button
                     onClick={handleSend}
                     disabled={chatAccessBlocked || !inputValue.trim()}
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
-                      chatAccessBlocked || !inputValue.trim()
-                        ? "opacity-40 cursor-not-allowed hover:bg-zinc-900"
-                        : isRecording
-                          ? "ring-2 ring-red-400 ring-offset-1"
-                          : ""
-                    }`}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${chatAccessBlocked || !inputValue.trim()
+                      ? "opacity-40 cursor-not-allowed hover:bg-zinc-900"
+                      : isRecording
+                        ? "ring-2 ring-red-400 ring-offset-1"
+                        : ""
+                      }`}
+                  >
+                    <IconPushChat />
+                  </button>
+                  {/* <button
+                    onClick={handleSend}
+                    disabled={chatAccessBlocked || !inputValue.trim()}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${chatAccessBlocked || !inputValue.trim()
+                      ? "opacity-40 cursor-not-allowed hover:bg-zinc-900"
+                      : isRecording
+                        ? "ring-2 ring-red-400 ring-offset-1"
+                        : ""
+                      }`}
                   >
                     <IconWaveform />
-                  </button>
+                  </button> */}
                 </div>
               </div>
             </div>
@@ -3556,7 +3633,7 @@ export default function Home() {
       </div>
       {/* Auth Modal */}
       {authModal && (
-        <AuthModal defaultMode={authModal} onClose={() => setAuthModal(null)} />
+        <AuthModal defaultMode={authModal} demoUser={demoUser} onClose={() => setAuthModal(null)} />
       )}
 
       {/* Upgrade / Pricing Modal — shown automatically when free limit is hit */}
@@ -3637,11 +3714,10 @@ export default function Home() {
                     setActivePanel(null);
                     setSearchOpen(false);
                   }}
-                  className={`flex w-full items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors ${
-                    (freeTierBlocked || (isLoggedIn && walletCredits !== null && walletCredits <= 0))
-                      ? "text-zinc-400 opacity-60 cursor-not-allowed"
-                      : "text-zinc-800 hover:bg-zinc-50"
-                  }`}
+                  className={`flex w-full items-center gap-3 px-5 py-3.5 text-sm font-medium transition-colors ${(freeTierBlocked || (isLoggedIn && walletCredits !== null && walletCredits <= 0))
+                    ? "text-zinc-400 opacity-60 cursor-not-allowed"
+                    : "text-zinc-800 hover:bg-zinc-50"
+                    }`}
                 >
                   <svg
                     width="17"
@@ -3675,11 +3751,10 @@ export default function Home() {
                               loadConversation(chat.id, accessToken);
                             setSearchOpen(false);
                           }}
-                          className={`flex w-full items-center gap-3 px-5 py-3 text-sm transition-colors ${
-                            conversationId === chat.id
-                              ? "bg-zinc-100 text-zinc-900"
-                              : "text-zinc-700 hover:bg-zinc-50"
-                          }`}
+                          className={`flex w-full items-center gap-3 px-5 py-3 text-sm transition-colors ${conversationId === chat.id
+                            ? "bg-zinc-100 text-zinc-900"
+                            : "text-zinc-700 hover:bg-zinc-50"
+                            }`}
                         >
                           <svg
                             width="17"

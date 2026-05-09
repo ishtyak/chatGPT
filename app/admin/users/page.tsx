@@ -9,16 +9,15 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { adminApi } from "@/services/admin/api";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
-import { useToast } from "@/hooks/useToast";
 import { useUsers } from "@/hooks/useUsers";
 import type { User } from "@/types/admin";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { enqueueSnackbar } from "notistack";
 
 export default function UsersPage() {
   const router = useRouter();
-  const { pushToast } = useToast();
   const { plans } = useSubscriptions();
   const planLookup = useMemo(
     () => Object.fromEntries(plans.map((plan) => [plan.id, plan.name])),
@@ -130,7 +129,7 @@ export default function UsersPage() {
             className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
             title="Click to adjust credits"
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v4l3 3"/></svg>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" /><path d="M12 8v4l3 3" /></svg>
             Edit
           </button>
         ),
@@ -233,11 +232,7 @@ export default function UsersPage() {
           type="button"
           onClick={async () => {
             await bulkSuspend(selectedList);
-            pushToast({
-              title: "Users suspended",
-              description: `${selectedList.length} users updated.`,
-              variant: "warning",
-            });
+            enqueueSnackbar(`${selectedList.length} users updated.`, { variant: "warning" })
           }}
           disabled={selectedList.length === 0}
           className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -255,7 +250,7 @@ export default function UsersPage() {
             anchor.download = "users.csv";
             anchor.click();
             URL.revokeObjectURL(url);
-            pushToast({ title: "Export ready", variant: "success" });
+            enqueueSnackbar("Export ready", { variant: "warning" })
           }}
           className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
         >
@@ -305,11 +300,7 @@ export default function UsersPage() {
               type="button"
               onClick={async () => {
                 await suspend(user.id);
-                pushToast({
-                  title: "User suspended",
-                  description: user.email,
-                  variant: "warning",
-                });
+                enqueueSnackbar(user.email, { variant: "warning" })
               }}
               className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-300"
             >
@@ -347,7 +338,7 @@ export default function UsersPage() {
               onClick={async () => {
                 if (!editUser) return;
                 await update(editUser.id, editUser);
-                pushToast({ title: "User updated", variant: "success" });
+                enqueueSnackbar("User updated", { variant: "warning" })
                 setEditUser(null);
                 prevEditUserId.current = null;
               }}
@@ -451,13 +442,17 @@ export default function UsersPage() {
                       amount,
                       reason: creditReason || (amount > 0 ? "admin_add" : "admin_deduct"),
                     });
+                    if (res?.data?.message == "Feature not availiable in demo mode") {
+                      alert("Feature not availiable in demo mode")
+                      return
+                    }
                     const newBalance = (res as any).data?.balance ?? (editUserCredits ?? 0) + amount;
                     setEditUserCredits(typeof newBalance === "number" ? newBalance : (editUserCredits ?? 0) + amount);
                     setCreditAdjust("");
                     setCreditReason("");
-                    pushToast({ title: `Credits ${amount > 0 ? "added" : "deducted"} (${amount > 0 ? "+" : ""}${amount})`, variant: "success" });
+                    enqueueSnackbar(`Credits ${amount > 0 ? "added" : "deducted"} (${amount > 0 ? "+" : ""}${amount})`, { variant: "success" })
                   } catch (err: any) {
-                    pushToast({ title: "Failed to adjust credits", description: err?.message, variant: "error" });
+                    enqueueSnackbar(err?.message, { variant: "error" })
                   } finally {
                     setCreditLoading(false);
                   }
@@ -481,7 +476,7 @@ export default function UsersPage() {
         onConfirm={async () => {
           if (!deleteTarget) return;
           await deleteUser(deleteTarget);
-          pushToast({ title: "User deleted", variant: "success" });
+          enqueueSnackbar("User deleted", { variant: "success" })
           setDeleteTarget(null);
         }}
       />

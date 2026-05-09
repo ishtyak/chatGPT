@@ -5,12 +5,11 @@ import { DrawerForm } from "@/components/admin/DrawerForm";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { useNotifications } from "@/hooks/useNotifications";
-import { useToast } from "@/hooks/useToast";
 import type { Notification } from "@/types/admin";
+import { enqueueSnackbar } from "notistack";
 import { useState } from "react";
 
 export default function NotificationsPage() {
-  const { pushToast } = useToast();
   const { rows: items, create, update, remove } = useNotifications();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -33,9 +32,9 @@ export default function NotificationsPage() {
       }
       setDrawerOpen(false);
       setForm(null);
-      pushToast({ title: "Notification saved", variant: "success" });
+      enqueueSnackbar("Notification saved", { variant: 'success' })
     } catch {
-      pushToast({ title: "Save failed", variant: "error" });
+      enqueueSnackbar( "Save failed", { variant: 'success' })
     }
   };
 
@@ -231,7 +230,7 @@ export default function NotificationsPage() {
           if (!deleteId) return;
           await remove(deleteId);
           setDeleteId(null);
-          pushToast({ title: "Notification deleted", variant: "success" });
+          enqueueSnackbar("Notification deleted", { variant: 'success' })
         }}
       />
     </div>
