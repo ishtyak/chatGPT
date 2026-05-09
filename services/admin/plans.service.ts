@@ -14,8 +14,14 @@ const publicApi = axios.create({
 type BackendPlan = {
   id: string | number;
   name: string;
+  slug?: string;
+  description?: string;
   price: number;
+  price_monthly?: number;
+  price_yearly?: number;
   duration_days: number;
+  ai_call_quota?: number;
+  credits_included?: number;
   features: string | string[];
   is_active: boolean | number;
   student_count?: number;
@@ -32,15 +38,17 @@ function parseFeatures(value: string | string[]): string[] {
 }
 
 function toFrontendPlan(raw: BackendPlan): Plan {
+  const priceMonthly = Number(raw.price_monthly ?? raw.price ?? 0);
+  const priceYearly = Number(raw.price_yearly ?? Math.round(priceMonthly * 0.83));
   return {
     id: String(raw.id),
     name: raw.name,
-    slug: raw.name.toLowerCase().replaceAll(" ", "-"),
-    description: `${raw.name} plan`,
-    priceMonthly: Number(raw.price ?? 0),
-    priceYearly: Number(raw.price ?? 0) * 10, // 2-month discount convention
-    currency: "USD",
-    aiCallQuota: 0,
+    slug: raw.slug ?? raw.name.toLowerCase().replaceAll(" ", "-"),
+    description: raw.description ?? `${raw.name} plan`,
+    priceMonthly,
+    priceYearly,
+    currency: "INR",
+    aiCallQuota: Number(raw.ai_call_quota ?? raw.credits_included ?? 0),
     modelAccess: [],
     features: parseFeatures(raw.features),
     isActive: Boolean(raw.is_active),
@@ -56,14 +64,22 @@ function toBackendPayload(
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   if ("name" in plan && plan.name !== undefined) payload.name = plan.name;
-  if ("priceMonthly" in plan && plan.priceMonthly !== undefined)
+  if ("slug" in plan && plan.slug !== undefined) payload.slug = plan.slug;
+  if ("description" in plan && plan.description !== undefined) payload.description = plan.description;
+  if ("priceMonthly" in plan && plan.priceMonthly !== undefined) {
     payload.price = plan.priceMonthly;
+    payload.price_monthly = plan.priceMonthly;
+  }
+  if ("priceYearly" in plan && plan.priceYearly !== undefined)
+    payload.price_yearly = plan.priceYearly;
+  if ("aiCallQuota" in plan && plan.aiCallQuota !== undefined) {
+    payload.ai_call_quota = plan.aiCallQuota;
+    payload.credits_included = plan.aiCallQuota;
+  }
   if ("features" in plan && plan.features !== undefined)
     payload.features = plan.features;
   if ("isActive" in plan && plan.isActive !== undefined)
     payload.is_active = plan.isActive;
-  // duration_days is required by the backend but not exposed in the form;
-  // default to 30 days (monthly billing cycle).
   if (!("duration_days" in payload)) payload.duration_days = 30;
   return payload;
 }
