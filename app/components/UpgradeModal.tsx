@@ -352,26 +352,6 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
   );
 }
 
-/* ── Types ─────────────────────────────────────────────────────────────────── */
-type BillingCycle = "monthly" | "yearly";
-
-interface UiPlan {
-  id: string;
-  slug?: string;
-  name: string;
-  icon: string;
-  tagline: string;
-  badge?: { label: string; color: string; bg: string };
-  monthly: number;
-  yearly: number;
-  yearlyAnnual: number;
-  yearlySave: number;
-  credits: string;
-  features: { icon: string; text: string }[];
-  borderColor: string;
-  bgGradient?: string;
-}
-
 /* ── Helpers (same as pricing page) ─────────────────────────────────────────── */
 const PALETTE = [
   { borderColor: "border-gray-200", bgGradient: undefined as string | undefined, icon: "✦" },
