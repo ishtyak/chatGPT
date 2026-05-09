@@ -5,24 +5,23 @@ import { DataTable } from "@/components/admin/DataTable";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
-import { useToast } from "@/hooks/useToast";
 import {
-    activateUser,
-    deleteUser,
-    getUserById,
-    getUserSessions,
-    suspendUser,
-    updateUser,
+  activateUser,
+  deleteUser,
+  getUserById,
+  getUserSessions,
+  suspendUser,
+  updateUser,
 } from "@/services/admin/users.service";
 import type { User, UserSession } from "@/types/admin";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
+import { enqueueSnackbar } from "notistack";
 import { useEffect, useMemo, useState } from "react";
 
 export default function UserProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { pushToast } = useToast();
   const { plans } = useSubscriptions();
   const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<UserSession[]>([]);
@@ -110,7 +109,7 @@ export default function UserProfilePage() {
                 onClick={async () => {
                   const updated = await suspendUser(user.id);
                   setUser(updated);
-                  pushToast({ title: "User suspended", variant: "warning" });
+                  enqueueSnackbar("User suspended", { variant: "warning" })
                 }}
                 className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300"
               >
@@ -121,7 +120,7 @@ export default function UserProfilePage() {
                 onClick={async () => {
                   const updated = await activateUser(user.id);
                   setUser(updated);
-                  pushToast({ title: "User activated", variant: "success" });
+                  enqueueSnackbar("User activated", { variant: "success" })
                 }}
                 className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300"
               >
@@ -220,7 +219,7 @@ export default function UserProfilePage() {
               onClick={async () => {
                 const updated = await updateUser(user.id, user);
                 setUser(updated);
-                pushToast({ title: "Profile saved", variant: "success" });
+                enqueueSnackbar("Profile saved", { variant: "success" })
               }}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
             >
@@ -318,7 +317,7 @@ export default function UserProfilePage() {
         onClose={() => setConfirmDelete(false)}
         onConfirm={async () => {
           await deleteUser(user.id);
-          pushToast({ title: "User deleted", variant: "success" });
+          enqueueSnackbar("User deleted", { variant: "success" })
           router.push("/admin/users");
         }}
       />

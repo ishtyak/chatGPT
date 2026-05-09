@@ -5,14 +5,13 @@ import { DrawerForm } from "@/components/admin/DrawerForm";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { useToast } from "@/hooks/useToast";
 import { useTools } from "@/hooks/useTools";
 import type { Tool } from "@/types/admin";
 import Image from "next/image";
+import { enqueueSnackbar } from "notistack";
 import { useMemo, useState } from "react";
 
 export default function ToolsPage() {
-  const { pushToast } = useToast();
   const {
     rows: tools,
     category,
@@ -51,9 +50,9 @@ export default function ToolsPage() {
       }
       setDrawerOpen(false);
       setForm(null);
-      pushToast({ title: "Tool saved", variant: "success" });
+      enqueueSnackbar("Tool saved", { variant: "success" })
     } catch {
-      pushToast({ title: "Save failed", variant: "error" });
+      enqueueSnackbar("Save failed", { variant: "error" })
     }
   };
 
@@ -406,7 +405,7 @@ export default function ToolsPage() {
           if (!confirmDelete) return;
           await remove(confirmDelete);
           setConfirmDelete(null);
-          pushToast({ title: "Tool deleted", variant: "success" });
+           enqueueSnackbar("Tool deleted", { variant: "success" })
         }}
       />
     </div>

@@ -3,8 +3,8 @@
 import { ChartCard } from "@/components/admin/ChartCard";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useAdminStats } from "@/hooks/useAdminStats";
-import { useToast } from "@/hooks/useToast";
 import { exportChartCsv } from "@/services/admin/analytics.service";
+import { enqueueSnackbar } from "notistack";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -31,7 +31,6 @@ const dateOptions = [
 ];
 
 export default function AnalyticsPage() {
-  const { pushToast } = useToast();
   const { charts } = useAdminStats();
   const [range, setRange] = useState("30d");
   const chartData = useMemo(
@@ -57,7 +56,7 @@ export default function AnalyticsPage() {
     anchor.download = `${label}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
-    pushToast({ title: `${label} exported`, variant: "success" });
+    enqueueSnackbar(`${label} exported`, { variant: 'success' })
   };
 
   return (

@@ -3,7 +3,6 @@
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { AdminTopbar } from "@/components/admin/AdminTopbar";
 import { LoadingSpinner } from "@/components/admin/LoadingSpinner";
-import { ToastProvider, ToastViewport } from "@/hooks/useToast";
 import { adminApi } from "@/services/admin/api";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -129,7 +128,6 @@ export default function AdminLayout({
   }
 
   return (
-    <ToastProvider>
       <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <div className="flex h-screen">
           <AdminSidebar
@@ -152,8 +150,6 @@ export default function AdminLayout({
             </main>
           </div>
         </div>
-        <ToastViewport />
       </div>
-    </ToastProvider>
   );
 }

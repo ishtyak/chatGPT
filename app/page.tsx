@@ -33,7 +33,7 @@ import ExploreView from "./components/ExploreView";
 import ModelSelector from "./components/ModelSelector";
 import TemplatesView from "./components/TemplatesView";
 import UpgradeModal from "./components/UpgradeModal";
-import { useToast } from "../hooks/useToast";
+import { enqueueSnackbar } from "notistack";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -749,7 +749,6 @@ function renderUpgradePrompt() {
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { pushToast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inputValue, setInputValue] = useState("");
 
@@ -1087,7 +1086,7 @@ export default function Home() {
           }),
         });
         const data = await res.json();
-        if(data?.message == "Feature not availiable in demo mode"){
+        if (data?.message == "Feature not availiable in demo mode") {
           alert("Feature not availiable in demo mode")
           return
         }
@@ -1435,11 +1434,7 @@ export default function Home() {
       if (contentType.includes("application/json")) {
         const data = await res.json().catch(() => ({}));
         if (data?.blocked) {
-          pushToast({
-            title: "Demo Mode",
-            description: data.message ?? "Feature not available in demo mode",
-            variant: "warning",
-          });
+          enqueueSnackbar("Feature not available in demo mode", { variant: 'info' })
           setMessages((prev) => prev.filter((m) => m.id !== aiId));
           setIsTyping(false);
           return;
@@ -3144,22 +3139,24 @@ export default function Home() {
                     <IconMic />
                   </button>
                   {
-                    inputValue ? <button
+                    // inputValue ? 
+                    <button
                       onClick={handleSend}
                       disabled={chatAccessBlocked || !inputValue.trim()}
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full  bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
                         }`}
                     >
                       <IconPushChat />
-                    </button> :
-                      <button
-                        onClick={handleSend}
-                        disabled={chatAccessBlocked || !inputValue.trim()}
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
-                          }`}
-                      >
-                        <IconWaveform />
-                      </button>
+                    </button>
+                    //  :
+                    //   <button
+                    //     onClick={handleSend}
+                    //     disabled={chatAccessBlocked || !inputValue.trim()}
+                    //     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${isRecording ? "ring-2 ring-red-400 ring-offset-1" : ""
+                    //       }`}
+                    //   >
+                    //     <IconWaveform />
+                    //   </button>
                   }
 
                 </div>
@@ -3614,8 +3611,20 @@ export default function Home() {
                         : ""
                       }`}
                   >
-                    <IconWaveform />
+                    <IconPushChat />
                   </button>
+                  {/* <button
+                    onClick={handleSend}
+                    disabled={chatAccessBlocked || !inputValue.trim()}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${chatAccessBlocked || !inputValue.trim()
+                      ? "opacity-40 cursor-not-allowed hover:bg-zinc-900"
+                      : isRecording
+                        ? "ring-2 ring-red-400 ring-offset-1"
+                        : ""
+                      }`}
+                  >
+                    <IconWaveform />
+                  </button> */}
                 </div>
               </div>
             </div>
