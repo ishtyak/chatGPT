@@ -50,8 +50,6 @@ export default function AdminAccessPage() {
     }
   };
 
-
-
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-10 text-zinc-100">
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-lg items-center">

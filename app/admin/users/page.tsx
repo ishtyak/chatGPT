@@ -36,6 +36,7 @@ export default function UsersPage() {
     toggleSelect,
     toggleSelectAll,
     update,
+    removeUser,
     suspend,
     delete: deleteUser,
     bulkSuspend,
@@ -62,7 +63,21 @@ export default function UsersPage() {
       .get(`/payments/users/${editUser.id}/credits`)
       .then((res: any) => setEditUserCredits(res.data?.balance ?? res.data ?? null))
       .catch(() => setEditUserCredits(null));
+
   }, [editUser]);
+
+  const toggleDemoUser = async (user: any) => {
+    try {
+      adminApi
+        .get(`/users/toggle/${user.id}?demo_user=true`)
+        .then((res: any) => setEditUserCredits(res.data?.balance ?? res.data ?? null))
+        .catch(() => setEditUserCredits(null));
+      removeUser(user.id)
+      // await fetch(`${process.env.NODE_ENV == 'production' ? process.env.BACKEND_URL : 'http://localhost:4000'}/api/admin/users/toggle/3?demo_user=true`)
+    } catch (error) {
+      console.error("Error occured", { cause: error })
+    }
+  }
 
   const columns = useMemo(
     () => [
@@ -102,22 +117,36 @@ export default function UsersPage() {
         header: "Email",
         render: (user: User) => <span>{user.email}</span>,
       },
-      {
-        key: "plan",
-        header: "Plan",
-        render: (user: User) => (
-          <span>{planLookup[user.planId] ?? user.planId}</span>
-        ),
-      },
+      // {
+      //   key: "plan",
+      //   header: "Plan",
+      //   render: (user: User) => (
+      //     <span>{planLookup[user.planId] ?? user.planId}</span>
+      //   ),
+      // },
       {
         key: "status",
         header: "Status",
         render: (user: User) => <StatusBadge status={user.status} />,
       },
+      // {
+      //   key: "usage",
+      //   header: "AI Usage",
+      //   render: (user: User) => <span>{user.aiUsage?.toLocaleString()}</span>,
+      // },
       {
-        key: "usage",
-        header: "AI Usage",
-        render: (user: User) => <span>{user.aiUsage?.toLocaleString()}</span>,
+        key: "Demo",
+        header: "demo_user",
+        render: (user: User) => (
+          <button
+            type="button"
+            onClick={() => toggleDemoUser(user)}
+            className={`inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors ${user.is_admin == 2 ? 'bg-green-400' : ''}`}
+            title="Click to adjust credits"
+          >
+            toggle
+          </button>
+        ),
       },
       {
         key: "credits",
