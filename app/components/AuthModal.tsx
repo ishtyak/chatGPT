@@ -72,7 +72,7 @@ export default function AuthModal({ onClose, defaultMode = "signup", demoUser = 
     /* Backdrop */
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      // onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* Card */}
       <div className="relative w-full max-w-md rounded-2xl bg-white px-8 py-10 shadow-2xl">

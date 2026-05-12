@@ -1024,7 +1024,7 @@ export default function Home() {
       enqueueSnackbar("Feature not availiablein demo mode", { variant: 'info' });
       return;
     }
-    
+
     if (freeTierBlocked) {
       setUpgradeModalOpen(true);
       return;
@@ -3216,20 +3216,23 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-col mt-4 gap-2 ">
-              <button
-                onClick={() => {
-                  setAuthModal("signin")
-                }}
-                className="text-black font-bold bg-white rounded-full border p-2 px-3">
-                Try Demo Login
-              </button>
+            {
+              !session?.user?.email &&
+              <div className="flex flex-col mt-4 gap-2 ">
+                <button
+                  onClick={() => {
+                    setAuthModal("signin")
+                  }}
+                  className="text-black font-bold bg-white rounded-full border p-2 px-3">
+                  Try Demo Login
+                </button>
 
-              {/* <button className="bg-black text-white p-2 rounded-md w-full">
+                {/* <button className="bg-black text-white p-2 rounded-md w-full">
                 Continue with email
               </button> */}
 
-            </div>
+              </div>
+            }
 
             {/* Sign-in CTA */}
             {/* {!isLoggedIn && status !== "loading" && (
