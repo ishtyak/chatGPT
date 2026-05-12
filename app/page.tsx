@@ -1823,7 +1823,7 @@ export default function Home() {
     if (!accessToken) return;
     setChatMenu(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/conversations/${id}`, {
+      const res = await fetch(`${BACKEND_API}/api/conversations/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${accessToken}` },
       });
