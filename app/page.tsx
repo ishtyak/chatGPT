@@ -1020,8 +1020,8 @@ export default function Home() {
 
   async function handleSend() {
     // Non-logged-in guests blocked after GUEST_MESSAGE_LIMIT messages
-    if(session?.user?.email === 'demo@softkey.in'){
-      enqueueSnackbar("Feature not availiablein demo mode",{variant:'info'})
+    if ((session?.user as { is_admin?: string })?.is_admin == '2') {
+      enqueueSnackbar("Feature not availiablein demo mode", { variant: 'info' });
       return;
     }
     

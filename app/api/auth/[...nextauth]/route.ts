@@ -58,7 +58,7 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
             }
             if (!data.user) return null;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            return { id: String(data.user.id), name: data.user.name ?? null, email: data.user.email, accessToken: data.token } as any;
+            return { id: String(data.user.id),is_admin: data.user.is_admin, name: data.user.name ?? null, email: data.user.email, accessToken: data.token } as any;
           } catch {
             return null;
           }
@@ -94,6 +94,7 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
           token.id = (user as any).dbId ?? user.id;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           token.accessToken = (user as any).accessToken;
+          token.is_admin = (user as any).is_admin; // add this
         }
         return token;
       },
@@ -103,6 +104,7 @@ async function buildAuthOptions(): Promise<NextAuthOptions> {
           (session.user as any).id = token.id;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (session as any).accessToken = token.accessToken;
+          (session.user as any).is_admin = token.is_admin; // add this
         }
         return session;
       },

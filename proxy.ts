@@ -1,19 +1,39 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-export function proxy(request: NextRequest) {
-    console.log("request", request)
-    if ((request.method === "POST" || request.method === "PUT" || request.method === "DELETE") && !request.url.includes('auth')) {
-        return NextResponse.json({
-            blocked: true,
-            route: request.nextUrl.pathname,
-            message: "Feature not availiable in demo mode"
-        });
+export async function proxy(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Ignore next internals + auth APIs
+  if (
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/_next") ||
+    pathname === "/favicon.ico"
+  ) {
+    return NextResponse.next();
+  }
+
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  // Protect only admin routes
+  if (pathname.startsWith("/admin")) {
+    // not logged in
+    if (!token) {
+      return NextResponse.redirect(new URL("/", req.url));
     }
 
-    return NextResponse.next();
+    // not admin
+    if (token.is_admin !== 2) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-    matcher: "/api/:path*",
+  matcher: ["/admin/:path*"], // ONLY RUN ON ADMIN
 };
