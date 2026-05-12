@@ -78,6 +78,7 @@ export interface User {
   avatarUrl: string;
   status: UserStatus;
   planId: string;
+  is_admin: number;
   aiUsage: number;
   joinedAt: string;
   lastActiveAt: string;

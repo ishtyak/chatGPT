@@ -107,6 +107,9 @@ export function useUsers(initialPage = 1, pageSize = 50) {
           return next;
         });
       },
+      removeUser: async (id: string) => {
+        setRows((current) => current.filter((row) => row.id !== id));
+      },
       bulkSuspend: async (ids: string[]) => {
         await bulkSuspendUsers(ids);
         setRows((current) =>

@@ -184,6 +184,7 @@ export const adminMockState: {
   users: [
     {
       id: "user_1",
+      is_admin:4,
       name: "Ava Johnson",
       email: "ava@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Ava",
@@ -203,6 +204,7 @@ export const adminMockState: {
     {
       id: "user_2",
       name: "Noah Patel",
+      is_admin:4,
       email: "noah@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Noah",
       status: "active",
@@ -220,6 +222,7 @@ export const adminMockState: {
     },
     {
       id: "user_3",
+      is_admin:4,
       name: "Sophia Kim",
       email: "sophia@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Sophia",
@@ -239,6 +242,7 @@ export const adminMockState: {
     {
       id: "user_4",
       name: "Ethan Ross",
+      is_admin:4,
       email: "ethan@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Ethan",
       status: "active",
@@ -257,6 +261,7 @@ export const adminMockState: {
     {
       id: "user_5",
       name: "Mia Garcia",
+      is_admin:4,
       email: "mia@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Mia",
       status: "suspended",
@@ -276,6 +281,7 @@ export const adminMockState: {
       id: "user_6",
       name: "Oliver Brown",
       email: "oliver@example.com",
+      is_admin:4,
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Oliver",
       status: "active",
       planId: "plan_free",
@@ -293,6 +299,7 @@ export const adminMockState: {
     {
       id: "user_7",
       name: "Isabella Silva",
+      is_admin:4,
       email: "isabella@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Isabella",
       status: "active",
@@ -314,6 +321,7 @@ export const adminMockState: {
       email: "lucas@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Lucas",
       status: "active",
+      is_admin:4,
       planId: "plan_pro",
       aiUsage: 2180,
       joinedAt: daysAgo(65),
@@ -330,6 +338,7 @@ export const adminMockState: {
       id: "user_9",
       name: "Zara Khan",
       email: "zara@example.com",
+      is_admin:4,
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Zara",
       status: "unverified",
       planId: "plan_free",
@@ -348,6 +357,7 @@ export const adminMockState: {
       id: "user_10",
       name: "James Walker",
       email: "james@example.com",
+      is_admin:4,
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=James",
       status: "active",
       planId: "plan_pro",
@@ -365,6 +375,7 @@ export const adminMockState: {
     {
       id: "user_11",
       name: "Hana Sato",
+      is_admin:4,
       email: "hana@example.com",
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Hana",
       status: "active",
@@ -387,6 +398,7 @@ export const adminMockState: {
       avatarUrl: "https://api.dicebear.com/9.x/initials/svg?seed=Daniel",
       status: "suspended",
       planId: "plan_business",
+      is_admin:4,
       aiUsage: 6400,
       joinedAt: daysAgo(260),
       lastActiveAt: daysAgo(42),
